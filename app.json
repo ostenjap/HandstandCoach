@@ -7,7 +7,10 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "Handstand Coach needs the camera to analyze your handstand form in real time."
+      }
     },
     "android": {
       "permissions": [
@@ -34,6 +37,12 @@
         }
       ],
       "react-native-fast-tflite"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "372c24d1-7fcf-4c7a-9b69-763e84e8e399"
+      }
+    },
+    "owner": "ostenjap"
   }
 }
