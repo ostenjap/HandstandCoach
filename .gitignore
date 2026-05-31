@@ -40,3 +40,5 @@ yarn-error.*
 # /ios
 # /android
 
+# Local tool settings
+.claude/
