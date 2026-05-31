@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useFrameProcessor } from 'react-native-vision-camera';
 import { useResizePlugin } from 'vision-camera-resize-plugin';
-import { useRunOnJS } from 'react-native-worklets-core';
+import { useRunOnJS, useSharedValue } from 'react-native-worklets-core';
 import { useTensorflowModel } from 'react-native-fast-tflite';
 import { analyzePose, decodePose } from './analyzePose';
 import type { CoachFeedback } from './poseTypes';
@@ -26,18 +26,22 @@ export function usePoseCoach(): PoseCoach {
     setFeedback(next);
   }, []);
 
+  // Capture the loaded TensorflowModel itself (or undefined). This is what the
+  // worklet closes over, so we never reach into `.model` on an unloaded plugin.
+  const tfModel = model.state === 'loaded' ? model.model : undefined;
+
+  // Worklet-shared throttle clock (safe across the JS/worklet boundary).
+  const lastRun = useSharedValue(0);
+
   const frameProcessor = useFrameProcessor(
     (frame) => {
       'worklet';
-      if (model.state !== 'loaded') return;
+      if (tfModel == null) return;
 
       // Skip frames to keep inference cheap.
       const now = Date.now();
-      // @ts-expect-error worklet-local cache stashed on the frame processor
-      const last = globalThis.__lastPoseAt ?? 0;
-      if (now - last < ANALYZE_EVERY_MS) return;
-      // @ts-expect-error
-      globalThis.__lastPoseAt = now;
+      if (now - lastRun.value < ANALYZE_EVERY_MS) return;
+      lastRun.value = now;
 
       const resized = resize(frame, {
         scale: { width: 192, height: 192 },
@@ -45,11 +49,11 @@ export function usePoseCoach(): PoseCoach {
         dataType: 'uint8',
       });
 
-      const outputs = model.model.runSync([resized]);
+      const outputs = tfModel.runSync([resized]);
       const pose = decodePose(outputs[0] as unknown as Float32Array);
       onFeedback(analyzePose(pose));
     },
-    [model, resize, onFeedback]
+    [tfModel, resize, onFeedback, lastRun]
   );
 
   return { feedback, modelReady: model.state === 'loaded', frameProcessor };
