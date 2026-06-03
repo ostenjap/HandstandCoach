@@ -78,22 +78,22 @@ export default function CoachScreen({ stepId, onBack, onStepComplete }: CoachScr
           <View style={styles.metricRow}>
             {/* Timer Card */}
             <View style={styles.metricCard}>
-              <Text style={styles.metricLabel}>HOLD TIME</Text>
+              <Text style={styles.metricLabel}>{step.type === 'reps' ? 'REPS' : 'HOLD TIME'}</Text>
               <Text style={styles.metricValue}>
-                {feedback ? feedback.holdTime : 0}s
+                {feedback ? feedback.holdTime : 0}{step.type === 'reps' ? '' : 's'}
               </Text>
-              <Text style={styles.metricSubText}>Goal: {step.targetPRSeconds}s</Text>
+              <Text style={styles.metricSubText}>Goal: {step.targetPRSeconds}{step.type === 'reps' ? ' reps' : 's'}</Text>
             </View>
 
             {/* Score/Alignment Card */}
             <View style={styles.metricCard}>
               <Text style={styles.metricLabel}>ALIGNMENT</Text>
               <Text style={styles.metricValue}>
-                {feedback && feedback.isInverted
+                {feedback && (feedback.isInverted || stepId === 0 || stepId === 1)
                   ? `${Math.round(feedback.alignmentScore * 100)}%`
                   : '—'}
               </Text>
-              <Text style={styles.metricSubText}>Best PR: {personalRecord}s</Text>
+              <Text style={styles.metricSubText}>Best PR: {personalRecord}{step.type === 'reps' ? ' reps' : 's'}</Text>
             </View>
           </View>
 
@@ -122,73 +122,89 @@ export default function CoachScreen({ stepId, onBack, onStepComplete }: CoachScr
           
           {simulationState === 'standing' ? (
             <TouchableOpacity style={styles.simActionBtn} onPress={triggerKickUp}>
-              <Text style={styles.simActionBtnText}>KICK UP (START DRILL)</Text>
+              <Text style={styles.simActionBtnText}>
+                {stepId === 0 || stepId === 1 ? 'START DRILL' : 'KICK UP (START DRILL)'}
+              </Text>
             </TouchableOpacity>
           ) : simulationState === 'kicking_up' ? (
             <View style={styles.simLoadingBox}>
               <ActivityIndicator size="small" color="#FFFFFF" />
-              <Text style={styles.simLoadingText}>KICKING UP...</Text>
+              <Text style={styles.simLoadingText}>
+                {stepId === 0 || stepId === 1 ? 'GETTING READY...' : 'KICKING UP...'}
+              </Text>
             </View>
           ) : (
             <View>
-              {/* Form Quality Selector */}
-              <Text style={styles.simQualityLabel}>Simulated Body Posture:</Text>
-              <View style={styles.qualityRow}>
-                <TouchableOpacity
-                  style={[styles.qualityBtn, formQuality === 'perfect' && styles.qualityBtnActive]}
-                  onPress={() => setFormQuality('perfect')}
-                >
-                  <Text style={[styles.qualityText, formQuality === 'perfect' && styles.qualityTextActive]}>
-                    Perfect
-                  </Text>
-                </TouchableOpacity>
-
-                {stepId === 1 ? (
-                  // Step 1 specific simulation (shoulders shifting out of stack)
-                  <TouchableOpacity
-                    style={[styles.qualityBtn, formQuality === 'plunging' && styles.qualityBtnActive]}
-                    onPress={() => setFormQuality('plunging')}
-                  >
-                    <Text style={[styles.qualityText, formQuality === 'plunging' && styles.qualityTextActive]}>
-                      Unstacked
-                    </Text>
-                  </TouchableOpacity>
-                ) : stepId === 4 ? (
-                  // Step 4 specific simulation (floating vs resting on wall)
-                  <TouchableOpacity
-                    style={[styles.qualityBtn, formQuality === 'wall_rest' && styles.qualityBtnActive]}
-                    onPress={() => setFormQuality('wall_rest')}
-                  >
-                    <Text style={[styles.qualityText, formQuality === 'wall_rest' && styles.qualityTextActive]}>
-                      Wall Rest
-                    </Text>
-                  </TouchableOpacity>
-                ) : (
-                  // Standard handstand errors
-                  <>
+              {/* Form Quality Selector (only show if step has quality options) */}
+              {stepId !== 0 && stepId !== 8 && (
+                <>
+                  <Text style={styles.simQualityLabel}>Simulated Body Posture:</Text>
+                  <View style={styles.qualityRow}>
                     <TouchableOpacity
-                      style={[styles.qualityBtn, formQuality === 'banana_back' && styles.qualityBtnActive]}
-                      onPress={() => setFormQuality('banana_back')}
+                      style={[styles.qualityBtn, formQuality === 'perfect' && styles.qualityBtnActive]}
+                      onPress={() => setFormQuality('perfect')}
                     >
-                      <Text style={[styles.qualityText, formQuality === 'banana_back' && styles.qualityTextActive]}>
-                        Banana Back
+                      <Text style={[styles.qualityText, formQuality === 'perfect' && styles.qualityTextActive]}>
+                        Perfect
                       </Text>
                     </TouchableOpacity>
 
-                    <TouchableOpacity
-                      style={[styles.qualityBtn, formQuality === 'plunging' && styles.qualityBtnActive]}
-                      onPress={() => setFormQuality('plunging')}
-                    >
-                      <Text style={[styles.qualityText, formQuality === 'plunging' && styles.qualityTextActive]}>
-                        Plunging
-                      </Text>
-                    </TouchableOpacity>
-                  </>
-                )}
-              </View>
+                    {stepId === 1 ? (
+                      <TouchableOpacity
+                        style={[styles.qualityBtn, formQuality === 'banana_back' && styles.qualityBtnActive]}
+                        onPress={() => setFormQuality('banana_back')}
+                      >
+                        <Text style={[styles.qualityText, formQuality === 'banana_back' && styles.qualityTextActive]}>
+                          Banana Back
+                        </Text>
+                      </TouchableOpacity>
+                    ) : (stepId === 4 || stepId === 5 || stepId === 9) ? (
+                      <TouchableOpacity
+                        style={[styles.qualityBtn, formQuality === 'plunging' && styles.qualityBtnActive]}
+                        onPress={() => setFormQuality('plunging')}
+                      >
+                        <Text style={[styles.qualityText, formQuality === 'plunging' && styles.qualityTextActive]}>
+                          Plunging
+                        </Text>
+                      </TouchableOpacity>
+                    ) : stepId === 10 ? (
+                      <TouchableOpacity
+                        style={[styles.qualityBtn, formQuality === 'wall_rest' && styles.qualityBtnActive]}
+                        onPress={() => setFormQuality('wall_rest')}
+                      >
+                        <Text style={[styles.qualityText, formQuality === 'wall_rest' && styles.qualityTextActive]}>
+                          Wall Rest
+                        </Text>
+                      </TouchableOpacity>
+                    ) : (
+                      <>
+                        <TouchableOpacity
+                          style={[styles.qualityBtn, formQuality === 'banana_back' && styles.qualityBtnActive]}
+                          onPress={() => setFormQuality('banana_back')}
+                        >
+                          <Text style={[styles.qualityText, formQuality === 'banana_back' && styles.qualityTextActive]}>
+                            Banana Back
+                          </Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={[styles.qualityBtn, formQuality === 'plunging' && styles.qualityBtnActive]}
+                          onPress={() => setFormQuality('plunging')}
+                        >
+                          <Text style={[styles.qualityText, formQuality === 'plunging' && styles.qualityTextActive]}>
+                            Plunging
+                          </Text>
+                        </TouchableOpacity>
+                      </>
+                    )}
+                  </View>
+                </>
+              )}
 
               <TouchableOpacity style={[styles.simActionBtn, styles.exitDrillBtn]} onPress={triggerFallDown}>
-                <Text style={styles.simActionBtnText}>FALL DOWN (STOP DRILL)</Text>
+                <Text style={styles.simActionBtnText}>
+                  {stepId === 0 || stepId === 1 ? 'STOP DRILL' : (stepId === 8 ? 'SAFE BAIL (EXIT DRILL)' : 'FALL DOWN (STOP DRILL)')}
+                </Text>
               </TouchableOpacity>
             </View>
           )}

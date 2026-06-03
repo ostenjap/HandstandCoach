@@ -95,6 +95,7 @@ export default function App() {
         visible={sheetVisible && activeStepId === null}
         onClose={() => setSheetVisible(false)}
         onStartCamera={handleStartCamera}
+        profile={profile}
       />
     </View>
   );

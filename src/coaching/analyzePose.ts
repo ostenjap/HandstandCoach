@@ -45,29 +45,13 @@ function avgX(...points: Keypoint[]): number {
 
 // Pure, framework-free coaching logic so it can be unit-tested and reused
 // regardless of which camera/model feeds it. Now takes a stepId (1..6).
-export function analyzePose(pose: Pose, stepId: number = 6): CoachFeedback {
+export function analyzePose(pose: Pose, stepId: number = 11): CoachFeedback {
   'worklet';
 
   const shoulderY = avgY(pose.leftShoulder, pose.rightShoulder);
   const hipY = avgY(pose.leftHip, pose.rightHip);
   const ankleY = avgY(pose.leftAnkle, pose.rightAnkle);
   const wristY = avgY(pose.leftWrist, pose.rightWrist);
-
-  // Check if inverted. In all steps (even L-stand), hips/ankles are higher than shoulders.
-  // In our coordinate space, y grows downward (0 at top, 1 at bottom).
-  // So "higher" means a SMALLER y value.
-  const isInverted = !Number.isNaN(shoulderY) && !Number.isNaN(hipY) && hipY < shoulderY;
-
-  if (!isInverted) {
-    return {
-      isInverted: false,
-      alignmentScore: 0,
-      holdTime: 0,
-      message: stepId === 1 
-        ? 'Get into a pike position with feet on wall.'
-        : 'Kick up into your handstand to start coaching.',
-    };
-  }
 
   // Common alignment calculations
   const wristX = avgX(pose.leftWrist, pose.rightWrist);
@@ -95,110 +79,200 @@ export function analyzePose(pose: Pose, stepId: number = 6): CoachFeedback {
   let feetOffWall = false;
   let balanceScore = 0;
 
-  switch (stepId) {
-    case 1: {
-      // Step 1: Wall Pike / L-Stand
-      // Focus: Wrists and shoulders vertically stacked. Hips bent at 90 deg.
-      // We check wrist-shoulder vertical alignment.
-      const wristShoulderDiff = Math.abs(wristX - shoulderX);
-      shoulderStacked = wristShoulderDiff < 0.06;
+  // STEP 0: Wrist rocks (Floor hands & knees posture)
+  if (stepId === 0) {
+    const isOnFloor = !Number.isNaN(shoulderY) && !Number.isNaN(hipY) && shoulderY > 0.5 && hipY > 0.5;
+    return {
+      isInverted: false,
+      alignmentScore: 1.0,
+      holdTime: 0,
+      isSuccess: isOnFloor,
+      message: isOnFloor ? 'Perform slow wrist rocks, shifting weight forward and back.' : 'Position your camera and get on your hands and knees.',
+    };
+  }
 
-      if (!shoulderStacked) {
-        message = 'Push your shoulders active: press chest toward the wall.';
-      } else {
-        isSuccess = true;
-        message = 'Perfect L-stack! Squeeze your shoulders and hold.';
-      }
-      break;
+  // STEP 1: Hollow Body Hold (Lying flat on back)
+  if (stepId === 1) {
+    const isLyingDown = !Number.isNaN(shoulderY) && !Number.isNaN(hipY) && Math.abs(shoulderY - hipY) < 0.15 && shoulderY > 0.5;
+    if (!isLyingDown) {
+      return {
+        isInverted: false,
+        alignmentScore: 0,
+        holdTime: 0,
+        isSuccess: false,
+        message: 'Lie flat on your back to start the Hollow Body Hold.',
+      };
     }
+    const midLineY = (shoulderY + ankleY) / 2;
+    bananaBack = Math.abs(hipY - midLineY) > 0.08;
+    isSuccess = !bananaBack;
+    return {
+      isInverted: false,
+      alignmentScore: isSuccess ? 0.9 : 0.4,
+      holdTime: 0,
+      isSuccess,
+      bananaBack,
+      message: bananaBack 
+        ? 'Banana back! Press your lower back firmly into the floor.' 
+        : 'Perfect Hollow Body shape! Keep holding.',
+    };
+  }
 
+  const isInverted = !Number.isNaN(shoulderY) && !Number.isNaN(hipY) && hipY < shoulderY;
+
+  if (!isInverted) {
+    let startingPrompt = 'Kick up against the wall to start.';
+    if (stepId === 2 || stepId === 3) startingPrompt = 'Get into Ground Pike position.';
+    else if (stepId === 4 || stepId === 5) startingPrompt = 'Place feet on box and hands on floor.';
+    else if (stepId === 6 || stepId === 7) startingPrompt = 'Walk your feet up the wall.';
+
+    return {
+      isInverted: false,
+      alignmentScore: 0,
+      holdTime: 0,
+      message: startingPrompt,
+    };
+  }
+
+  switch (stepId) {
     case 2: {
-      // Step 2: Stomach-to-Wall
-      // Focus: Straight line alignment, suck in stomach (no banana back).
-      // Check if hipX is in line with wristX and ankleX. If hipX is bowing out:
-      const midLineX = (wristX + ankleX) / 2;
-      const hipDeviation = Math.abs(hipX - midLineX);
-      bananaBack = hipDeviation > 0.05;
-
-      if (bananaBack) {
-        message = 'Banana back detected. Squeeze your glutes and suck in your belly.';
-      } else if (alignmentScore > 0.82) {
-        isSuccess = true;
-        message = 'Beautiful flat line! Lock out your elbows.';
+      // Step 2: Ground Pike Hold
+      const isVshape = !Number.isNaN(hipY) && !Number.isNaN(shoulderY) && !Number.isNaN(ankleY) && hipY < shoulderY - 0.1 && hipY < ankleY - 0.1;
+      if (!isVshape) {
+        message = 'Push your hips higher to form an inverted V-shape.';
       } else {
-        message = 'Press your fingers into the ground to stay close to the wall.';
+        isSuccess = true;
+        message = 'Ground Pike active. Lock your elbows and push the floor away!';
       }
       break;
     }
 
     case 3: {
-      // Step 3: Back-to-Wall Kick-Up
-      // Focus: Kick up with stacked shoulders, preventing shoulders plunging forward.
-      const wristShoulderDiff = Math.abs(wristX - shoulderX);
-      shouldersPlunged = wristShoulderDiff > 0.08 && shoulderX > wristX; // shoulders leaning forward
+      // Step 3: Ground Pike Push-Up
+      const isDown = !Number.isNaN(pose.nose.y) && !Number.isNaN(wristY) && Math.abs(pose.nose.y - wristY) < 0.15;
+      const isForward = Math.abs(pose.nose.x - wristX) > 0.05;
 
-      if (shouldersPlunged) {
-        message = 'Shoulders are plunging. Keep your shoulders directly over wrists.';
-      } else if (alignmentScore > 0.80) {
-        isSuccess = true;
-        message = 'Clean kick-up entry! Squeeze legs together.';
+      if (isDown) {
+        if (isForward) {
+          isSuccess = true;
+          message = 'Excellent descent! Press back up strongly.';
+        } else {
+          message = 'Tuck elbows and bring your head forward in front of hands.';
+        }
       } else {
-        message = 'Hold your position against the wall.';
+        isSuccess = true;
+        message = 'Perform a pike push-up: lower head forward toward floor.';
       }
       break;
     }
 
     case 4: {
-      // Step 4: Heel/Wall Taps
-      // Focus: Squeeze and balance ankles freestanding off the wall.
-      // If ankleX is stacked with shoulderX and hipX, they are balancing.
-      const ankleShoulderDiff = Math.abs(ankleX - shoulderX);
-      feetOffWall = ankleShoulderDiff < 0.04;
+      // Step 4: Box Pike Hold
+      const wristShoulderDiff = Math.abs(wristX - shoulderX);
+      shoulderStacked = wristShoulderDiff < 0.06;
 
-      if (feetOffWall) {
-        isSuccess = true;
-        message = 'Nice! Feet are floating off the wall. Keep balancing.';
+      if (!shoulderStacked) {
+        message = 'Push your shoulders active: stack them over wrists.';
       } else {
-        message = 'Gently tap your heels away from the wall to float.';
+        isSuccess = true;
+        message = 'Perfect vertical box pike! Hold and build shoulder tolerance.';
       }
       break;
     }
 
     case 5: {
-      // Step 5: Bail & Catch
-      // Focus: Balanced hold with a safe exit.
-      balanceScore = alignmentScore;
-      const isBalanced = alignmentScore > 0.85;
-
-      if (isBalanced) {
+      // Step 5: Box Pike Push-Up
+      const isDown = !Number.isNaN(pose.nose.y) && !Number.isNaN(wristY) && Math.abs(pose.nose.y - wristY) < 0.15;
+      if (isDown) {
         isSuccess = true;
-        message = 'Balanced! Focus on core tightness.';
-      } else if (spread > 0.15) {
-        message = 'Losing balance. Pivot your wrist and cartwheel out safely.';
+        message = 'Good bottom position! Press back up.';
       } else {
-        message = 'Adjust pressure in your fingers to stay upright.';
+        isSuccess = true;
+        message = 'Lower head forward of hands and press back up.';
       }
       break;
     }
 
     case 6: {
-      // Step 6: Freestanding Alignment
-      // Focus: Squeezed, aligned freestanding hold.
+      // Step 6: Partial Wall Walk (45 deg)
+      const angleDeviation = Math.abs(hipX - wristX);
+      const is45deg = angleDeviation > 0.08 && angleDeviation < 0.2;
+
+      if (!is45deg) {
+        message = 'Adjust distance from wall to maintain a 45-degree angle.';
+      } else {
+        isSuccess = true;
+        message = 'Good 45-degree hold. Build tolerance without going vertical.';
+      }
+      break;
+    }
+
+    case 7: {
+      // Step 7: Full Wall Walk
+      const isVertical = alignmentScore > 0.85;
+      if (!isVertical) {
+        message = 'Walk hands closer to the wall and stack your joints.';
+      } else {
+        isSuccess = true;
+        message = 'Full vertical inversion! Lock elbows and hold.';
+      }
+      break;
+    }
+
+    case 8: {
+      // Step 8: Safety Bail
+      isSuccess = true;
+      message = 'Inverted! Press "BAIL (SIMULATE EXIT)" to practice stepping down.';
+      break;
+    }
+
+    case 9: {
+      // Step 9: Wall Kick-Up
+      const wristShoulderDiff = Math.abs(wristX - shoulderX);
+      shouldersPlunged = wristShoulderDiff > 0.08 && shoulderX > wristX;
+
+      if (shouldersPlunged) {
+        message = 'Shoulders plunged forward! Push back over wrists.';
+      } else if (alignmentScore > 0.82) {
+        isSuccess = true;
+        message = 'Soft entry! Heels tapped wall light as a feather.';
+      } else {
+        message = 'Kick up softly until your heels tap the wall.';
+      }
+      break;
+    }
+
+    case 10: {
+      // Step 10: The Float (Wall Taps)
+      const ankleShoulderDiff = Math.abs(ankleX - shoulderX);
+      feetOffWall = ankleShoulderDiff < 0.04;
+
+      if (feetOffWall) {
+        isSuccess = true;
+        message = 'Floating! Fingers active, control the balance.';
+      } else {
+        message = 'Resting on wall. Gently push off using finger pressure.';
+      }
+      break;
+    }
+
+    case 11: {
+      // Step 11: Antigravity
       balanceScore = alignmentScore;
       const isPerfect = alignmentScore > 0.90;
 
       if (isPerfect) {
         isSuccess = true;
-        message = 'Elite alignment! Hold still.';
+        message = 'Elite balance! Squeeze glutes and point toes.';
       } else if (alignmentScore > 0.80) {
         isSuccess = true;
-        message = 'Good hold! Squeeze ankles and point toes.';
+        message = 'Freestanding balance active. Squeeze ankles!';
       } else if (hipX - shoulderX > 0.04) {
-        message = 'Hips are arching past hands — engage core.';
+        message = 'Hips arching (banana back) — tuck tailbone.';
       } else if (shoulderX - hipX > 0.04) {
-        message = 'Piking detected — open shoulders and push hips forward.';
+        message = 'Piking (hips back) — open shoulders.';
       } else {
-        message = 'Balance over your fingers.';
+        message = 'Adjust finger pressure to stack your body.';
       }
       break;
     }
@@ -208,7 +282,7 @@ export function analyzePose(pose: Pose, stepId: number = 6): CoachFeedback {
     isInverted: true,
     alignmentScore,
     message,
-    holdTime: 0, // Set/accumulated dynamically by the hook
+    holdTime: 0,
     isSuccess,
     shoulderStacked,
     bananaBack,

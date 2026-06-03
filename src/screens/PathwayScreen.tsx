@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   StyleSheet,
   Text,
@@ -9,6 +9,7 @@ import {
   StatusBar,
   Animated,
   Dimensions,
+  Modal,
 } from 'react-native';
 import { DRILL_STEPS, DrillStep } from '../coaching/poseTypes';
 import { UserProfile } from '../coaching/userStore';
@@ -27,6 +28,9 @@ export default function PathwayScreen({
   onResetOnboarding,
 }: PathwayScreenProps) {
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  const [fearPopupDismissed, setFearPopupDismissed] = useState(false);
+
+  const showFearPopup = profile.biggestStruggle === 'fear' && !fearPopupDismissed && !profile.completedSteps.includes(8);
 
   // Pulsing animation for the recommended step node
   useEffect(() => {
@@ -50,7 +54,8 @@ export default function PathwayScreen({
 
   // Determine if a step is unlocked
   const isStepUnlocked = (stepId: number) => {
-    if (stepId === 1) return true;
+    if (stepId <= profile.recommendedStepId) return true;
+    if (stepId === 0) return true;
     // Unlocked if previous step is completed
     return profile.completedSteps.includes(stepId - 1);
   };
@@ -104,6 +109,13 @@ export default function PathwayScreen({
                     />
                   )}
                   
+                  {isRecommended && (
+                    <View style={styles.tooltipBubble}>
+                      <Text style={styles.tooltipText}>Based on your answers, start here.</Text>
+                      <View style={styles.tooltipArrow} />
+                    </View>
+                  )}
+                  
                   <TouchableOpacity
                     style={[
                       styles.nodeCircle,
@@ -122,12 +134,6 @@ export default function PathwayScreen({
                       </Text>
                     )}
                   </TouchableOpacity>
-
-                  {isRecommended && (
-                    <View style={styles.badgeContainer}>
-                      <Text style={styles.badgeText}>START HERE</Text>
-                    </View>
-                  )}
                 </View>
 
                 {/* Step Metadata Card */}
@@ -138,9 +144,13 @@ export default function PathwayScreen({
                 >
                   <Text style={styles.stepSubtitle}>{step.subtitle}</Text>
                   <Text style={styles.stepName}>{step.name}</Text>
-                  <Text style={styles.stepGoal}>Target: {step.targetPRSeconds}s hold</Text>
+                  <Text style={styles.stepGoal}>
+                    {step.type === 'reps' ? `Target: ${step.targetPRSeconds} reps` : `Target: ${step.targetPRSeconds}s hold`}
+                  </Text>
                   {profile.personalRecords[step.id] > 0 && (
-                    <Text style={styles.stepPR}>PR: {profile.personalRecords[step.id]}s</Text>
+                    <Text style={styles.stepPR}>
+                      {step.type === 'reps' ? `Best Set: ${profile.personalRecords[step.id]} reps` : `PR: ${profile.personalRecords[step.id]}s`}
+                    </Text>
                   )}
                 </TouchableOpacity>
 
@@ -149,6 +159,32 @@ export default function PathwayScreen({
           })}
         </View>
       </ScrollView>
+
+      {/* Fear Superpower Modal */}
+      <Modal
+        visible={showFearPopup}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setFearPopupDismissed(true)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalEmoji}>⚡</Text>
+            <Text style={styles.modalTitle}>FEAR IS YOUR SUPERPOWER</Text>
+            <Text style={styles.modalDescription}>
+              You mentioned a fear of falling over. That's completely normal, and it's the number one roadblock for beginners.
+              {"\n\n"}
+              We have unlocked <Text style={styles.modalHighlight}>Step 8: The Safety Bail</Text> for you immediately. Learning how to bail safely is your superpower because once you know how to fall, the fear disappears.
+            </Text>
+            <TouchableOpacity
+              style={styles.modalButton}
+              onPress={() => setFearPopupDismissed(true)}
+            >
+              <Text style={styles.modalButtonText}>I AM READY</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -283,20 +319,38 @@ const styles = StyleSheet.create({
   nodeNumberTextRecommended: {
     fontWeight: '900',
   },
-  badgeContainer: {
+  tooltipBubble: {
     position: 'absolute',
-    bottom: -18,
+    top: -55,
+    left: '50%',
+    marginLeft: -70,
+    width: 140,
     backgroundColor: '#FFFFFF',
-    paddingVertical: 2,
-    paddingHorizontal: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
     borderRadius: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
   },
-  badgeText: {
+  tooltipText: {
     color: '#000000',
-    fontSize: 7,
-    fontWeight: '900',
+    fontSize: 9,
+    fontWeight: 'bold',
     fontFamily: 'Helvetica',
-    letterSpacing: 1,
+    textAlign: 'center',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  tooltipArrow: {
+    position: 'absolute',
+    bottom: -4,
+    left: '50%',
+    marginLeft: -4,
+    width: 8,
+    height: 8,
+    backgroundColor: '#FFFFFF',
+    transform: [{ rotate: '45deg' }],
   },
   metaCard: {
     flex: 1,
@@ -335,5 +389,60 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontFamily: 'Helvetica',
     marginTop: 4,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalContent: {
+    backgroundColor: '#050505',
+    borderWidth: 1,
+    borderColor: '#FFFFFF',
+    padding: 30,
+    width: '100%',
+    maxWidth: 340,
+    alignItems: 'center',
+  },
+  modalEmoji: {
+    fontSize: 32,
+    marginBottom: 16,
+  },
+  modalTitle: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: 'bold',
+    fontFamily: 'Helvetica',
+    letterSpacing: 2,
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  modalDescription: {
+    color: '#888888',
+    fontSize: 14,
+    fontFamily: 'Helvetica',
+    lineHeight: 20,
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  modalHighlight: {
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+  },
+  modalButton: {
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 14,
+    paddingHorizontal: 28,
+    width: '100%',
+    alignItems: 'center',
+  },
+  modalButtonText: {
+    color: '#000000',
+    fontSize: 12,
+    fontWeight: 'bold',
+    fontFamily: 'Helvetica',
+    letterSpacing: 2,
   },
 });

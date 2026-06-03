@@ -9,6 +9,7 @@ import {
   TouchableWithoutFeedback,
 } from 'react-native';
 import { DrillStep } from '../coaching/poseTypes';
+import { UserProfile } from '../coaching/userStore';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -17,6 +18,7 @@ interface DrillBottomSheetProps {
   visible: boolean;
   onClose: () => void;
   onStartCamera: () => void;
+  profile: UserProfile | null;
 }
 
 export default function DrillBottomSheet({
@@ -24,6 +26,7 @@ export default function DrillBottomSheet({
   visible,
   onClose,
   onStartCamera,
+  profile,
 }: DrillBottomSheetProps) {
   const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
@@ -83,10 +86,19 @@ export default function DrillBottomSheet({
   if (!step) return null;
 
   // Interpolations for stick figure lines depending on active step
-  // This draws a beautiful, minimal, moving stick figure showing correct alignment.
   const angleInterpolation = formAnim.interpolate({
     inputRange: [0, 1],
     outputRange: ['-2deg', '2deg'], // micro-wobble
+  });
+
+  const rockInterpolation = formAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-8, 8],
+  });
+
+  const pushUpInterpolation = formAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 16], // push up height transition
   });
 
   const wallTapInterpolation = formAnim.interpolate({
@@ -94,70 +106,194 @@ export default function DrillBottomSheet({
     outputRange: ['-12deg', '0deg'], // leg tapping off wall
   });
 
+  const bailRotationInterpolation = formAnim.interpolate({
+    inputRange: [0, 0.8, 1],
+    outputRange: ['0deg', '-45deg', '-90deg'], // bailing spin
+  });
+
+  const bailYInterpolation = formAnim.interpolate({
+    inputRange: [0, 0.8, 1],
+    outputRange: [0, 20, 45], // falling down
+  });
+
   const renderVisualGuide = () => {
-    // Renders custom geometric stick figure layouts based on stepId
     switch (step.id) {
-      case 1: // Wall Pike (L-Stand)
+      case 0: // Wrist Protocol (on hands and knees, rocking)
         return (
           <View style={styles.guideContainer}>
-            {/* Ground */}
             <View style={[styles.guideLine, styles.floorLine]} />
-            {/* Wall on Left */}
-            <View style={[styles.guideLine, styles.wallLineLeft]} />
-            
-            {/* Pike Stick Figure */}
-            <View style={styles.pikeFigureContainer}>
-              {/* Hands/Arms (vertical stack) */}
-              <View style={[styles.guideLine, styles.armLineVertical]} />
-              {/* Torso/Head (vertical stack) */}
-              <View style={[styles.guideLine, styles.torsoLineVertical]} />
-              <View style={styles.headNodeVertical} />
-              
-              {/* Legs (horizontal at 90 deg resting on wall) */}
-              <Animated.View 
-                style={[
-                  styles.guideLine, 
-                  styles.legLineHorizontal,
-                  { transform: [{ rotate: angleInterpolation }] }
-                ]} 
-              />
+            <Animated.View style={{ transform: [{ translateX: rockInterpolation }] }}>
+              {/* Hands & knees figure */}
+              <View style={styles.quadrupedContainer}>
+                <View style={[styles.guideLine, styles.quadrupedArm]} />
+                <View style={[styles.guideLine, styles.quadrupedTorso]} />
+                <View style={[styles.guideLine, styles.quadrupedThigh]} />
+                <View style={styles.headNodeQuadruped} />
+              </View>
+            </Animated.View>
+          </View>
+        );
+
+      case 1: // Hollow Body Hold
+        return (
+          <View style={styles.guideContainer}>
+            <View style={[styles.guideLine, styles.floorLine]} />
+            <View style={styles.hollowBodyContainer}>
+              <View style={[styles.guideLine, styles.hollowBackLine]} />
+              <Animated.View style={[styles.hollowLegs, { transform: [{ rotate: '-10deg' }] }]} />
+              <Animated.View style={[styles.hollowArms, { transform: [{ rotate: '10deg' }] }]} />
+              <View style={styles.headNodeHollow} />
             </View>
           </View>
         );
 
-      case 2: // Stomach-to-Wall
+      case 2: // Ground Pike Hold (V-shape)
         return (
           <View style={styles.guideContainer}>
-            {/* Ground */}
             <View style={[styles.guideLine, styles.floorLine]} />
-            {/* Wall on Right */}
-            <View style={[styles.guideLine, styles.wallLineRight]} />
+            <View style={styles.pikeFigureContainer}>
+              <View style={[styles.guideLine, styles.armLineVertical, { height: 40 }]} />
+              <View style={styles.torsoLinePike} />
+              <View style={styles.legLinePike} />
+              <View style={styles.headNodeVerticalPike} />
+            </View>
+          </View>
+        );
+
+      case 3: // Ground Pike Push-Up
+        return (
+          <View style={styles.guideContainer}>
+            <View style={[styles.guideLine, styles.floorLine]} />
+            <View style={styles.pikeFigureContainer}>
+              <Animated.View style={[styles.guideLine, styles.armLineVertical, { 
+                height: 40,
+                transform: [{ scaleY: formAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0.6] }) }]
+              }]} />
+              <Animated.View style={[styles.torsoLinePike, {
+                transform: [
+                  { translateY: pushUpInterpolation },
+                  { rotate: '45deg' }
+                ]
+              }]} />
+              <Animated.View style={[styles.legLinePike, {
+                transform: [
+                  { translateY: pushUpInterpolation },
+                  { rotate: '-45deg' }
+                ]
+              }]} />
+              <Animated.View style={[styles.headNodeVerticalPike, {
+                transform: [{ translateY: pushUpInterpolation }]
+              }]} />
+            </View>
+          </View>
+        );
+
+      case 4: // Box Pike Hold (elevated feet)
+        return (
+          <View style={styles.guideContainer}>
+            <View style={[styles.guideLine, styles.floorLine]} />
+            <View style={styles.boxGuide} />
             
-            {/* Flat Inverted Line (close to wall) */}
+            <View style={[styles.pikeFigureContainer, { left: 100 }]}>
+              <View style={[styles.guideLine, styles.armLineVertical, { height: 45 }]} />
+              <View style={[styles.guideLine, styles.torsoLineVertical, { bottom: 45, height: 35 }]} />
+              <View style={[styles.guideLine, styles.legLineHorizontal, { bottom: 80, left: -30, width: 30 }]} />
+              <View style={[styles.headNodeVertical, { bottom: 38 }]} />
+            </View>
+          </View>
+        );
+
+      case 5: // Box Pike Push-Up
+        return (
+          <View style={styles.guideContainer}>
+            <View style={[styles.guideLine, styles.floorLine]} />
+            <View style={styles.boxGuide} />
+            
+            <View style={[styles.pikeFigureContainer, { left: 100 }]}>
+              <Animated.View style={[styles.guideLine, styles.armLineVertical, { 
+                height: 45,
+                transform: [{ scaleY: formAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0.6] }) }]
+              }]} />
+              <Animated.View style={[styles.guideLine, styles.torsoLineVertical, { 
+                bottom: 45, 
+                height: 35,
+                transform: [{ translateY: pushUpInterpolation }]
+              }]} />
+              <Animated.View style={[styles.guideLine, styles.legLineHorizontal, { 
+                bottom: 80, 
+                left: -30, 
+                width: 30,
+                transform: [{ translateY: pushUpInterpolation }]
+              }]} />
+              <Animated.View style={[styles.headNodeVertical, { 
+                bottom: 38,
+                transform: [{ translateY: pushUpInterpolation }]
+              }]} />
+            </View>
+          </View>
+        );
+
+      case 6: // Partial Wall Walk (45 deg)
+        return (
+          <View style={styles.guideContainer}>
+            <View style={[styles.guideLine, styles.floorLine]} />
+            <View style={[styles.guideLine, styles.wallLineLeft]} />
+            <View style={[styles.invertedFigureContainer, { left: 60, bottom: 10 }]}>
+              <View style={[styles.guideLine, styles.fullBodyLine, { transform: [{ rotate: '45deg' }] }]} />
+              <View style={[styles.headNodeInverted, { top: 60, left: 12 }]} />
+            </View>
+          </View>
+        );
+
+      case 7: // Full Wall Walk
+        return (
+          <View style={styles.guideContainer}>
+            <View style={[styles.guideLine, styles.floorLine]} />
+            <View style={[styles.guideLine, styles.wallLineLeft]} />
+            
             <Animated.View 
               style={[
                 styles.invertedFigureContainer, 
-                styles.closeToRightWall,
+                { left: 35 },
                 { transform: [{ rotate: angleInterpolation }] }
               ]}
             >
-              {/* Head */}
               <View style={styles.headNodeInverted} />
-              {/* Full body line */}
               <View style={[styles.guideLine, styles.fullBodyLine]} />
             </Animated.View>
           </View>
         );
 
-      case 3: // Back-to-Wall Kick-Up
+      case 8: // Safety Bail
         return (
           <View style={styles.guideContainer}>
-            {/* Ground */}
             <View style={[styles.guideLine, styles.floorLine]} />
-            {/* Wall on Left */}
             <View style={[styles.guideLine, styles.wallLineLeft]} />
             
-            {/* Inverted body leaning, with shoulders stacked and heels touching wall */}
+            <Animated.View 
+              style={[
+                styles.invertedFigureContainer, 
+                { left: 80 },
+                { 
+                  transform: [
+                    { translateY: bailYInterpolation },
+                    { rotate: bailRotationInterpolation }
+                  ] 
+                }
+              ]}
+            >
+              <View style={styles.headNodeInverted} />
+              <View style={[styles.guideLine, styles.fullBodyLine]} />
+            </Animated.View>
+          </View>
+        );
+
+      case 9: // Wall Kick-Up
+        return (
+          <View style={styles.guideContainer}>
+            <View style={[styles.guideLine, styles.floorLine]} />
+            <View style={[styles.guideLine, styles.wallLineLeft]} />
+            
             <View style={[styles.invertedFigureContainer, styles.backToWallPosition]}>
               <View style={styles.headNodeInverted} />
               <Animated.View 
@@ -171,21 +307,16 @@ export default function DrillBottomSheet({
           </View>
         );
 
-      case 4: // Heel/Wall Taps
+      case 10: // Wall Taps
         return (
           <View style={styles.guideContainer}>
-            {/* Ground */}
             <View style={[styles.guideLine, styles.floorLine]} />
-            {/* Wall on Left */}
             <View style={[styles.guideLine, styles.wallLineLeft]} />
             
-            {/* Split/tap legs */}
             <View style={[styles.invertedFigureContainer, styles.freestandingCenter]}>
               <View style={styles.headNodeInverted} />
-              {/* Torso & arms straight */}
               <View style={[styles.guideLine, styles.torsoOnlyLine]} />
               
-              {/* Active tapping leg (taps wall on left) */}
               <Animated.View 
                 style={[
                   styles.guideLine, 
@@ -193,21 +324,17 @@ export default function DrillBottomSheet({
                   { transform: [{ rotate: wallTapInterpolation }] }
                 ]} 
               />
-              {/* Stable balancing leg */}
               <View style={[styles.guideLine, styles.balanceLegLine]} />
             </View>
           </View>
         );
 
-      case 5: // Bail & Catch
-      case 6: // Freestanding
+      case 11: // Antigravity
       default:
         return (
           <View style={styles.guideContainer}>
-            {/* Ground */}
             <View style={[styles.guideLine, styles.floorLine]} />
             
-            {/* Perfectly stacked freestanding line */}
             <Animated.View 
               style={[
                 styles.invertedFigureContainer, 
@@ -215,11 +342,8 @@ export default function DrillBottomSheet({
                 { transform: [{ rotate: angleInterpolation }] }
               ]}
             >
-              {/* Head */}
               <View style={styles.headNodeInverted} />
-              {/* Stacked body */}
               <View style={[styles.guideLine, styles.fullBodyLine]} />
-              {/* Mini hand stand base points */}
               <View style={styles.handBaseLeft} />
               <View style={styles.handBaseRight} />
             </Animated.View>
@@ -246,6 +370,11 @@ export default function DrillBottomSheet({
       onStartCamera();
     });
   };
+
+  const showOutdoorsWarning =
+    profile?.practiceEnvironment === 'outdoors' &&
+    step.id >= 6 &&
+    step.id <= 10;
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents={visible ? 'auto' : 'none'}>
@@ -286,6 +415,15 @@ export default function DrillBottomSheet({
         <View style={styles.detailsContainer}>
           <Text style={styles.descriptionText}>{step.description}</Text>
           
+          {showOutdoorsWarning && (
+            <View style={styles.warningBox}>
+              <Text style={styles.warningLabel}>⚠️ OUTDOORS WARNING</Text>
+              <Text style={styles.warningText}>
+                This drill requires a wall. Consider finding a sturdy tree or fence, or shift practice indoors.
+              </Text>
+            </View>
+          )}
+
           <View style={styles.goalBox}>
             <Text style={styles.goalLabel}>DRILL OBJECTIVE</Text>
             <Text style={styles.goalText}>{step.goalDescription}</Text>
@@ -563,5 +701,145 @@ const styles = StyleSheet.create({
     left: 19,
     height: 40,
     width: 1.5,
+  },
+
+  // New Guide Styles
+  quadrupedContainer: {
+    position: 'absolute',
+    left: 60,
+    bottom: 10,
+    width: 80,
+    height: 50,
+  },
+  quadrupedArm: {
+    left: 60,
+    bottom: 0,
+    height: 30,
+    width: 1.5,
+    backgroundColor: '#FFFFFF',
+  },
+  quadrupedTorso: {
+    left: 20,
+    bottom: 30,
+    width: 40,
+    height: 1.5,
+    backgroundColor: '#FFFFFF',
+  },
+  quadrupedThigh: {
+    left: 20,
+    bottom: 0,
+    height: 30,
+    width: 1.5,
+    backgroundColor: '#FFFFFF',
+  },
+  headNodeQuadruped: {
+    position: 'absolute',
+    left: 56,
+    bottom: 26,
+    width: 9,
+    height: 9,
+    borderRadius: 4.5,
+    backgroundColor: '#FFFFFF',
+  },
+  hollowBodyContainer: {
+    position: 'absolute',
+    left: 50,
+    bottom: 20,
+    width: 100,
+    height: 30,
+  },
+  hollowBackLine: {
+    left: 25,
+    bottom: 0,
+    width: 50,
+    height: 1.5,
+    backgroundColor: '#FFFFFF',
+  },
+  hollowLegs: {
+    position: 'absolute',
+    left: 75,
+    bottom: 0,
+    width: 30,
+    height: 1.5,
+    backgroundColor: '#FFFFFF',
+    transformOrigin: 'left',
+  },
+  hollowArms: {
+    position: 'absolute',
+    right: 75,
+    bottom: 0,
+    width: 30,
+    height: 1.5,
+    backgroundColor: '#FFFFFF',
+    transformOrigin: 'right',
+  },
+  headNodeHollow: {
+    position: 'absolute',
+    left: 20,
+    bottom: -2,
+    width: 9,
+    height: 9,
+    borderRadius: 4.5,
+    backgroundColor: '#FFFFFF',
+  },
+  torsoLinePike: {
+    position: 'absolute',
+    left: 40,
+    bottom: 40,
+    width: 30,
+    height: 1.5,
+    backgroundColor: '#FFFFFF',
+    transform: [{ rotate: '45deg' }],
+    transformOrigin: 'left',
+  },
+  legLinePike: {
+    position: 'absolute',
+    left: 10,
+    bottom: 40,
+    width: 30,
+    height: 1.5,
+    backgroundColor: '#FFFFFF',
+    transform: [{ rotate: '-45deg' }],
+    transformOrigin: 'right',
+  },
+  headNodeVerticalPike: {
+    position: 'absolute',
+    left: 62,
+    bottom: 12,
+    width: 9,
+    height: 9,
+    borderRadius: 4.5,
+    backgroundColor: '#FFFFFF',
+  },
+  boxGuide: {
+    position: 'absolute',
+    left: 65,
+    bottom: 10,
+    width: 35,
+    height: 45,
+    borderWidth: 1,
+    borderColor: '#333333',
+    backgroundColor: '#0a0a0a',
+  },
+  warningBox: {
+    borderWidth: 1,
+    borderColor: '#FFFFFF',
+    padding: 16,
+    backgroundColor: '#0a0000',
+    marginBottom: 20,
+  },
+  warningLabel: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: 'bold',
+    fontFamily: 'Helvetica',
+    letterSpacing: 1.5,
+    marginBottom: 6,
+  },
+  warningText: {
+    color: '#888888',
+    fontSize: 13,
+    fontFamily: 'Helvetica',
+    lineHeight: 18,
   },
 });

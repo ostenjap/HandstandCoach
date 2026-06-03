@@ -71,8 +71,10 @@ const storage = {
 
 export interface UserProfile {
   hasCompletedOnboarding: boolean;
-  startingLevel: 'beginner' | 'wall' | 'freestanding' | null;
-  biggestStruggle: 'fear' | 'shoulders' | 'balance' | null;
+  startingLevel: 'feet' | 'v_shape' | 'wall' | 'air' | null;
+  biggestStruggle: 'fear' | 'pain' | 'banana' | 'new' | null;
+  practiceEnvironment: 'home' | 'gym' | 'outdoors' | null;
+  weeklyCommitment: 'casual' | 'consistent' | 'obsessed' | null;
   recommendedStepId: number;
   completedSteps: number[]; // e.g. [1, 2]
   personalRecords: Record<number, number>; // stepId -> bestHoldTimeSeconds
@@ -84,15 +86,23 @@ export const DEFAULT_PROFILE: UserProfile = {
   hasCompletedOnboarding: false,
   startingLevel: null,
   biggestStruggle: null,
-  recommendedStepId: 1,
+  practiceEnvironment: null,
+  weeklyCommitment: null,
+  recommendedStepId: 0,
   completedSteps: [],
   personalRecords: {
+    0: 0,
     1: 0,
     2: 0,
     3: 0,
     4: 0,
     5: 0,
     6: 0,
+    7: 0,
+    8: 0,
+    9: 0,
+    10: 0,
+    11: 0,
   },
 };
 
