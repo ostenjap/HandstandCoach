@@ -8,9 +8,9 @@ import {
   SafeAreaView,
   StatusBar,
 } from 'react-native';
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import { Camera } from 'react-native-vision-camera';
 import { usePoseCoach } from '../coaching/usePoseCoach';
-import { DRILL_STEPS, DrillStep, Pose, KeypointName } from '../coaching/poseTypes';
+import { DRILL_STEPS, KeypointName } from '../coaching/poseTypes';
 import { completeStep } from '../coaching/userStore';
 
 const SKELETON_CONNECTIONS = [
@@ -39,27 +39,25 @@ export default function CoachScreen({ stepId, onBack, onStepComplete, theme = 'd
   const step = DRILL_STEPS.find((s) => s.id === stepId) || DRILL_STEPS[0];
   const isLight = theme === 'light';
 
-  const [permission, requestPermission] = useCameraPermissions();
   const [layout, setLayout] = useState({ width: 0, height: 0 });
 
   const {
     feedback,
     modelReady,
     activePose,
-    simulationState,
-    formQuality,
-    setFormQuality,
-    triggerKickUp,
-    triggerFallDown,
     personalRecord,
+    device,
+    hasPermission,
+    requestPermission,
+    frameProcessor,
   } = usePoseCoach(stepId);
 
-  // Auto-request camera permission on mount if not yet decided
+  // Auto-request camera permission on mount if not yet granted
   useEffect(() => {
-    if (permission && !permission.granted && permission.canAskAgain) {
+    if (!hasPermission) {
       requestPermission();
     }
-  }, [permission]);
+  }, [hasPermission, requestPermission]);
 
   // Auto-complete step in storage when target hold time is achieved
   useEffect(() => {
@@ -172,15 +170,7 @@ export default function CoachScreen({ stepId, onBack, onStepComplete, theme = 'd
     });
   };
 
-  if (!permission) {
-    return (
-      <View style={[styles.centerContainer, isLight && styles.centerContainerLight]}>
-        <ActivityIndicator size="large" color={isLight ? "#000000" : "#FFFFFF"} />
-      </View>
-    );
-  }
-
-  if (!permission.granted) {
+  if (!hasPermission) {
     return (
       <SafeAreaView style={[styles.permissionContainer, isLight && styles.permissionContainerLight]}>
         <View style={[styles.permissionCard, isLight && styles.permissionCardLight]}>
@@ -191,6 +181,22 @@ export default function CoachScreen({ stepId, onBack, onStepComplete, theme = 'd
           <TouchableOpacity style={[styles.btn, isLight && styles.btnLight]} onPress={requestPermission}>
             <Text style={[styles.btnText, isLight && styles.btnTextLight]}>GRANT PERMISSION</Text>
           </TouchableOpacity>
+          <TouchableOpacity style={styles.backBtnTextOnly} onPress={onBack}>
+            <Text style={[styles.cancelText, isLight && styles.cancelTextLight]}>← GO BACK</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!device) {
+    return (
+      <SafeAreaView style={[styles.permissionContainer, isLight && styles.permissionContainerLight]}>
+        <View style={[styles.permissionCard, isLight && styles.permissionCardLight]}>
+          <Text style={[styles.permissionTitle, isLight && styles.permissionTitleLight]}>NO CAMERA FOUND</Text>
+          <Text style={[styles.permissionText, isLight && styles.permissionTextLight]}>
+            No front-facing camera is available on this device.
+          </Text>
           <TouchableOpacity style={styles.backBtnTextOnly} onPress={onBack}>
             <Text style={[styles.cancelText, isLight && styles.cancelTextLight]}>← GO BACK</Text>
           </TouchableOpacity>
@@ -214,9 +220,12 @@ export default function CoachScreen({ stepId, onBack, onStepComplete, theme = 'd
       />
 
       {/* Camera Live Background */}
-      <CameraView 
+      <Camera
         style={StyleSheet.absoluteFill}
-        facing="front"
+        device={device}
+        isActive={true}
+        frameProcessor={frameProcessor}
+        fps={10}
       />
 
       {/* Tint Overlay */}
@@ -226,9 +235,11 @@ export default function CoachScreen({ stepId, onBack, onStepComplete, theme = 'd
       {renderBones()}
       {renderJoints()}
 
-      {/* Simulation-mode badge */}
+      {/* Live CV status badge */}
       <View style={[styles.simModeBadge, isLight && styles.simModeBadgeLight]} pointerEvents="none">
-        <Text style={[styles.simModeBadgeText, isLight && styles.simModeBadgeTextLight]}>SCANNING HUD ACTIVE</Text>
+        <Text style={[styles.simModeBadgeText, isLight && styles.simModeBadgeTextLight]}>
+          {modelReady ? (activePose ? 'POSE TRACKING LIVE' : 'SEARCHING FOR BODY…') : 'LOADING POSE MODEL…'}
+        </Text>
       </View>
 
       {/* Custom HUD Overlay */}
@@ -289,154 +300,21 @@ export default function CoachScreen({ stepId, onBack, onStepComplete, theme = 'd
           </View>
         </View>
 
-        {/* Simulation Control Panel */}
+        {/* End Drill */}
         <View style={[styles.simPanel, isLight && styles.simPanelLight]}>
-          <Text style={[styles.simPanelLabel, isLight && styles.simPanelLabelLight]}>CALIBRATION / SIMULATOR CONTROLS</Text>
-          
-          {simulationState === 'standing' ? (
-            <TouchableOpacity style={[styles.simActionBtn, isLight && styles.simActionBtnLight]} onPress={triggerKickUp}>
-              <Text style={[styles.simActionBtnText, isLight && styles.simActionBtnTextLight]}>
-                {stepId === 0 || stepId === 1 ? 'START DRILL' : 'KICK UP (START DRILL)'}
-              </Text>
-            </TouchableOpacity>
-          ) : simulationState === 'kicking_up' ? (
-            <View style={styles.simLoadingBox}>
-              <ActivityIndicator size="small" color={isLight ? "#000000" : "#FFFFFF"} />
-              <Text style={[styles.simLoadingText, isLight && styles.simLoadingTextLight]}>
-                {stepId === 0 || stepId === 1 ? 'GETTING READY...' : 'KICKING UP...'}
-              </Text>
-            </View>
-          ) : (
-            <View>
-              {/* Form Quality Selector */}
-              {stepId !== 0 && stepId !== 8 && (
-                <>
-                  <Text style={[styles.simQualityLabel, isLight && styles.simQualityLabelLight]}>Simulated Body Posture:</Text>
-                  <View style={styles.qualityRow}>
-                    <TouchableOpacity
-                      style={[
-                        styles.qualityBtn,
-                        isLight && styles.qualityBtnLight,
-                        formQuality === 'perfect' && (isLight ? styles.qualityBtnActiveLight : styles.qualityBtnActive)
-                      ]}
-                      onPress={() => setFormQuality('perfect')}
-                    >
-                      <Text style={[
-                        styles.qualityText,
-                        isLight && styles.qualityTextLight,
-                        formQuality === 'perfect' && (isLight ? styles.qualityTextActiveLight : styles.qualityTextActive)
-                      ]}>
-                        Perfect
-                      </Text>
-                    </TouchableOpacity>
-
-                    {stepId === 1 ? (
-                      <TouchableOpacity
-                        style={[
-                          styles.qualityBtn,
-                          isLight && styles.qualityBtnLight,
-                          formQuality === 'banana_back' && (isLight ? styles.qualityBtnActiveLight : styles.qualityBtnActive)
-                        ]}
-                        onPress={() => setFormQuality('banana_back')}
-                      >
-                        <Text style={[
-                          styles.qualityText,
-                          isLight && styles.qualityTextLight,
-                          formQuality === 'banana_back' && (isLight ? styles.qualityTextActiveLight : styles.qualityTextActive)
-                        ]}>
-                          Banana Back
-                        </Text>
-                      </TouchableOpacity>
-                    ) : (stepId === 4 || stepId === 5 || stepId === 9) ? (
-                      <TouchableOpacity
-                        style={[
-                          styles.qualityBtn,
-                          isLight && styles.qualityBtnLight,
-                          formQuality === 'plunging' && (isLight ? styles.qualityBtnActiveLight : styles.qualityBtnActive)
-                        ]}
-                        onPress={() => setFormQuality('plunging')}
-                      >
-                        <Text style={[
-                          styles.qualityText,
-                          isLight && styles.qualityTextLight,
-                          formQuality === 'plunging' && (isLight ? styles.qualityTextActiveLight : styles.qualityTextActive)
-                        ]}>
-                          Plunging
-                        </Text>
-                      </TouchableOpacity>
-                    ) : stepId === 10 ? (
-                      <TouchableOpacity
-                        style={[
-                          styles.qualityBtn,
-                          isLight && styles.qualityBtnLight,
-                          formQuality === 'wall_rest' && (isLight ? styles.qualityBtnActiveLight : styles.qualityBtnActive)
-                        ]}
-                        onPress={() => setFormQuality('wall_rest')}
-                      >
-                        <Text style={[
-                          styles.qualityText,
-                          isLight && styles.qualityTextLight,
-                          formQuality === 'wall_rest' && (isLight ? styles.qualityTextActiveLight : styles.qualityTextActive)
-                        ]}>
-                          Wall Rest
-                        </Text>
-                      </TouchableOpacity>
-                    ) : (
-                      <>
-                        <TouchableOpacity
-                          style={[
-                            styles.qualityBtn,
-                            isLight && styles.qualityBtnLight,
-                            formQuality === 'banana_back' && (isLight ? styles.qualityBtnActiveLight : styles.qualityBtnActive)
-                          ]}
-                          onPress={() => setFormQuality('banana_back')}
-                        >
-                          <Text style={[
-                            styles.qualityText,
-                            isLight && styles.qualityTextLight,
-                            formQuality === 'banana_back' && (isLight ? styles.qualityTextActiveLight : styles.qualityTextActive)
-                          ]}>
-                            Banana
-                          </Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                          style={[
-                            styles.qualityBtn,
-                            isLight && styles.qualityBtnLight,
-                            formQuality === 'plunging' && (isLight ? styles.qualityBtnActiveLight : styles.qualityBtnActive)
-                          ]}
-                          onPress={() => setFormQuality('plunging')}
-                        >
-                          <Text style={[
-                            styles.qualityText,
-                            isLight && styles.qualityTextLight,
-                            formQuality === 'plunging' && (isLight ? styles.qualityTextActiveLight : styles.qualityTextActive)
-                          ]}>
-                            Plunging
-                          </Text>
-                        </TouchableOpacity>
-                      </>
-                    )}
-                  </View>
-                </>
-              )}
-
-              <TouchableOpacity 
-                style={[
-                  styles.simActionBtn, 
-                  isLight && styles.simActionBtnLight,
-                  styles.exitDrillBtn,
-                  isLight && styles.exitDrillBtnLight
-                ]} 
-                onPress={triggerFallDown}
-              >
-                <Text style={[styles.exitDrillBtnText, isLight && styles.exitDrillBtnTextLight]}>
-                  {stepId === 0 || stepId === 1 ? 'STOP DRILL' : (stepId === 8 ? 'SAFE BAIL (EXIT DRILL)' : 'FALL DOWN (STOP DRILL)')}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          )}
+          <TouchableOpacity
+            style={[
+              styles.simActionBtn,
+              isLight && styles.simActionBtnLight,
+              styles.exitDrillBtn,
+              isLight && styles.exitDrillBtnLight,
+            ]}
+            onPress={onBack}
+          >
+            <Text style={[styles.exitDrillBtnText, isLight && styles.exitDrillBtnTextLight]}>
+              END DRILL
+            </Text>
+          </TouchableOpacity>
         </View>
 
       </SafeAreaView>

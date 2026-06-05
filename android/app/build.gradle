@@ -129,6 +129,8 @@ android {
     }
     androidResources {
         ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:!CVS:!thumbs.db:!picasa.ini:!*~'
+        // Keep the TFLite model uncompressed so react-native-fast-tflite can mmap it.
+        noCompress += ['tflite']
     }
 }
 

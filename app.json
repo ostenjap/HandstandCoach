@@ -29,12 +29,7 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      [
-        "expo-camera",
-        {
-          "cameraPermission": "Handstand Coach needs the camera to analyze your handstand form in real time."
-        }
-      ]
+      "react-native-fast-tflite"
     ],
     "extra": {
       "eas": {
