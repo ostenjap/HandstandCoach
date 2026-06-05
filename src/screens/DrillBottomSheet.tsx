@@ -45,7 +45,7 @@ export default function DrillBottomSheet({
     const loop = Animated.loop(
       Animated.timing(wristAnim, {
         toValue: 1,
-        duration: 6400,
+        duration: 9200,
         useNativeDriver: false,
       })
     );
@@ -53,7 +53,7 @@ export default function DrillBottomSheet({
 
     const lastPhase = { current: -1 };
     const id = wristAnim.addListener(({ value }) => {
-      const phase = value < 0.27 ? 0 : value < 0.52 ? 1 : 2;
+      const phase = value < 0.24 ? 0 : value < 0.4 ? 1 : 2;
       if (phase === lastPhase.current) return;
       lastPhase.current = phase;
       setWristPhase(
@@ -137,32 +137,34 @@ export default function DrillBottomSheet({
   });
 
   // Wrist rock staged loop, driven by wristAnim (0 -> 1 over one cycle):
-  //  phase 1 (0   - .27): zoom in on the planted hands
-  //  phase 2 (.30 - .52): zoom out, body fades in to the table-top form
-  //  phase 3 (.55 - 1  ): rock forward/back, pivoting on the wrists
+  //  phase 1 (0   - .24): zoom in on the planted hands
+  //  phase 2 (.30 - .40): zoom out, body fades in to the table-top form
+  //  phase 3 (.40 - 1  ): rock slowly forward/back, pivoting on the wrists
   // The whole figure pivots/zooms about the hands (see transformOrigin).
   const wristGroupScale = wristAnim.interpolate({
-    inputRange: [0, 0.22, 0.34, 1],
+    inputRange: [0, 0.19, 0.3, 1],
     outputRange: [1.6, 1.6, 1, 1],
   });
 
   const wristBodyOpacity = wristAnim.interpolate({
-    inputRange: [0, 0.2, 0.32, 1],
+    inputRange: [0, 0.17, 0.3, 1],
     outputRange: [0, 0, 1, 1],
   });
 
   const wristHandHighlight = wristAnim.interpolate({
-    inputRange: [0, 0.08, 0.2, 0.28, 1],
+    inputRange: [0, 0.06, 0.16, 0.24, 1],
     outputRange: [0.2, 1, 1, 0, 0],
   });
 
+  // The rock occupies the back ~60% of the loop so it reads at half the
+  // previous speed while the hands/form intro stays snappy.
   const wristRockTranslate = wristAnim.interpolate({
-    inputRange: [0, 0.55, 0.68, 0.82, 0.95, 1],
+    inputRange: [0, 0.4, 0.58, 0.78, 0.96, 1],
     outputRange: [0, 0, 7, -4, 0, 0],
   });
 
   const wristRockRotate = wristAnim.interpolate({
-    inputRange: [0, 0.55, 0.68, 0.82, 0.95, 1],
+    inputRange: [0, 0.4, 0.58, 0.78, 0.96, 1],
     outputRange: ['0deg', '0deg', '9deg', '-5deg', '0deg', '0deg'],
   });
 
@@ -540,7 +542,7 @@ export default function DrillBottomSheet({
 
         {/* Start Button */}
         <TouchableOpacity style={[styles.startBtn, isLight && styles.startBtnLight]} onPress={handleStart}>
-          <Text style={[styles.startBtnText, isLight && styles.startBtnTextLight]}>START CAMERA COACH</Text>
+          <Text style={[styles.startBtnText, isLight && styles.startBtnTextLight]}>START COACH</Text>
         </TouchableOpacity>
       </Animated.View>
     </View>
@@ -871,35 +873,40 @@ const styles = StyleSheet.create({
     left: 60,
     bottom: 10,
     width: 80,
-    height: 50,
+    height: 56,
     // Pivot on the hands (local x60, bottom) so the rock hinges at the wrists.
-    transformOrigin: '60px 50px',
+    transformOrigin: '60px 56px',
   },
+  // Arm: shoulder (60,36) down to the hand (60,0) — the shorter front support.
   quadrupedArm: {
     left: 60,
     bottom: 0,
-    height: 30,
+    height: 36,
     width: 1.5,
     backgroundColor: '#FFFFFF',
   },
-  quadrupedTorso: {
-    left: 20,
-    bottom: 30,
-    width: 40,
-    height: 1.5,
-    backgroundColor: '#FFFFFF',
-  },
+  // Thigh: hip (20,52) down to the knee (20,0) — clearly longer than the arm.
   quadrupedThigh: {
     left: 20,
     bottom: 0,
-    height: 30,
+    height: 52,
     width: 1.5,
     backgroundColor: '#FFFFFF',
+  },
+  // Back: slopes down from the higher hip to the lower shoulder.
+  quadrupedTorso: {
+    left: 20,
+    bottom: 52,
+    width: 43,
+    height: 1.5,
+    backgroundColor: '#FFFFFF',
+    transform: [{ rotate: '22deg' }],
+    transformOrigin: 'left',
   },
   headNodeQuadruped: {
     position: 'absolute',
     left: 56,
-    bottom: 26,
+    bottom: 31,
     width: 9,
     height: 9,
     borderRadius: 4.5,
