@@ -5,7 +5,7 @@ import OnboardingScreen from './src/screens/OnboardingScreen';
 import PathwayScreen from './src/screens/PathwayScreen';
 import CoachScreen from './src/screens/CoachScreen';
 import DrillBottomSheet from './src/screens/DrillBottomSheet';
-import { loadUserProfile, resetStore, UserProfile } from './src/coaching/userStore';
+import { loadUserProfile, saveUserProfile, resetStore, UserProfile } from './src/coaching/userStore';
 import { DrillStep } from './src/coaching/poseTypes';
 
 export default function App() {
@@ -56,36 +56,51 @@ export default function App() {
     setProfile(data);
   };
 
+  const handleUpdateSettings = async (updates: Partial<UserProfile>) => {
+    if (profile) {
+      const updatedProfile = { ...profile, ...updates };
+      const success = await saveUserProfile(updatedProfile);
+      if (success) {
+        setProfile(updatedProfile);
+      }
+    }
+  };
+
   const handleCoachBack = () => {
     setActiveStepId(null);
   };
 
   if (loading) {
+    const theme = profile?.theme || 'dark';
     return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color="#FFFFFF" />
+      <View style={[styles.center, theme === 'light' && styles.centerLight]}>
+        <ActivityIndicator size="large" color={theme === 'light' ? '#000000' : '#FFFFFF'} />
       </View>
     );
   }
 
+  const theme = profile?.theme || 'dark';
+
   // State-based Routing
   if (profile && !profile.hasCompletedOnboarding) {
-    return <OnboardingScreen onComplete={handleOnboardingComplete} />;
+    return <OnboardingScreen onComplete={handleOnboardingComplete} theme={theme} />;
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, theme === 'light' && styles.containerLight]}>
       {activeStepId !== null ? (
         <CoachScreen
           stepId={activeStepId}
           onBack={handleCoachBack}
           onStepComplete={handleStepComplete}
+          theme={theme}
         />
       ) : (
         <PathwayScreen
           profile={profile!}
           onSelectStep={handleSelectStep}
           onResetOnboarding={handleResetOnboarding}
+          onUpdateSettings={handleUpdateSettings}
         />
       )}
 
@@ -106,10 +121,16 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000000',
   },
+  containerLight: {
+    backgroundColor: '#FFFFFF',
+  },
   center: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#000000',
+  },
+  centerLight: {
+    backgroundColor: '#FFFFFF',
   },
 });

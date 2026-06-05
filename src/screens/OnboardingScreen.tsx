@@ -17,6 +17,7 @@ const { width } = Dimensions.get('window');
 
 interface OnboardingScreenProps {
   onComplete: (profile: UserProfile) => void;
+  theme?: 'light' | 'dark';
 }
 
 interface QuestionOption {
@@ -146,8 +147,9 @@ const QUESTIONS: Question[] = [
 const TouchableScale: React.FC<{
   onPress: () => void;
   selected: boolean;
+  isLight: boolean;
   children: React.ReactNode;
-}> = ({ onPress, selected, children }) => {
+}> = ({ onPress, selected, isLight, children }) => {
   const scaleValue = useRef(new Animated.Value(1)).current;
 
   const handlePressIn = () => {
@@ -177,7 +179,9 @@ const TouchableScale: React.FC<{
       <Animated.View
         style={[
           styles.card,
-          selected ? styles.cardSelected : styles.cardUnselected,
+          selected 
+            ? (isLight ? styles.cardSelectedLight : styles.cardSelected) 
+            : (isLight ? styles.cardUnselectedLight : styles.cardUnselected),
           { transform: [{ scale: scaleValue }] },
         ]}
       >
@@ -187,7 +191,7 @@ const TouchableScale: React.FC<{
   );
 };
 
-export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
+export default function OnboardingScreen({ onComplete, theme = 'dark' }: OnboardingScreenProps) {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [isHandoff, setIsHandoff] = useState(false);
@@ -195,6 +199,8 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
 
   const progressAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(1)).current;
+  
+  const isLight = theme === 'light';
 
   // Determine question keys
   const getQuestionKey = (index: number) => {
@@ -326,6 +332,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
     }
 
     const finalProfile: UserProfile = {
+      ...DEFAULT_PROFILE,
       hasCompletedOnboarding: true,
       startingLevel: level as any,
       biggestStruggle: struggle as any,
@@ -343,16 +350,20 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
   // Render Handoff Loading Screen
   if (isHandoff) {
     return (
-      <SafeAreaView style={styles.handoffContainer}>
-        <StatusBar barStyle="light-content" backgroundColor="#000000" />
+      <SafeAreaView style={[styles.handoffContainer, isLight && styles.handoffContainerLight]}>
+        <StatusBar 
+          barStyle={isLight ? "dark-content" : "light-content"} 
+          backgroundColor={isLight ? "#FFFFFF" : "#000000"} 
+        />
         <View style={styles.handoffContent}>
-          <Text style={styles.handoffBrand}>GRAVITY</Text>
+          <Text style={[styles.handoffBrand, isLight && styles.handoffBrandLight]}>GRAVITY</Text>
           
           {/* Progress Bar */}
-          <View style={styles.progressTrack}>
+          <View style={[styles.progressTrack, isLight && styles.progressTrackLight]}>
             <Animated.View
               style={[
                 styles.progressFill,
+                isLight && styles.progressFillLight,
                 {
                   width: progressAnim.interpolate({
                     inputRange: [0, 1],
@@ -363,7 +374,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
             />
           </View>
 
-          <Text style={styles.handoffText}>{handoffMessage}</Text>
+          <Text style={[styles.handoffText, isLight && styles.handoffTextLight]}>{handoffMessage}</Text>
         </View>
       </SafeAreaView>
     );
@@ -372,20 +383,23 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
   const currentQuestion = QUESTIONS[currentQuestionIndex];
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#000000" />
+    <SafeAreaView style={[styles.container, isLight && styles.containerLight]}>
+      <StatusBar 
+        barStyle={isLight ? "dark-content" : "light-content"} 
+        backgroundColor={isLight ? "#FFFFFF" : "#000000"} 
+      />
 
       {/* Header Back / Skip */}
       <View style={styles.header}>
         {currentQuestionIndex > 0 ? (
           <TouchableOpacity style={styles.backButton} onPress={handleBack}>
-            <Text style={styles.backText}>← BACK</Text>
+            <Text style={[styles.backText, isLight && styles.backTextLight]}>← BACK</Text>
           </TouchableOpacity>
         ) : (
           <View />
         )}
         <TouchableOpacity style={styles.skipButton} onPress={handleSkip}>
-          <Text style={styles.skipText}>SKIP</Text>
+          <Text style={[styles.skipText, isLight && styles.skipTextLight]}>SKIP</Text>
         </TouchableOpacity>
       </View>
 
@@ -393,19 +407,19 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
         {/* Intro only shown on first screen */}
         {currentQuestionIndex === 0 && (
           <View style={styles.introContainer}>
-            <Text style={styles.brandTitle}>GRAVITY</Text>
-            <Text style={styles.mainTitle}>Let's calibrate your gravity.</Text>
-            <Text style={styles.subtitle}>
+            <Text style={[styles.brandTitle, isLight && styles.brandTitleLight]}>GRAVITY</Text>
+            <Text style={[styles.mainTitle, isLight && styles.mainTitleLight]}>Let's calibrate your gravity.</Text>
+            <Text style={[styles.subtitle, isLight && styles.subtitleLight]}>
               A minimalist handstand coach engineered for zero clutter and absolute form.
             </Text>
           </View>
         )}
 
         <Animated.View style={[styles.questionSection, { opacity: fadeAnim }]}>
-          <Text style={styles.questionNumber}>
+          <Text style={[styles.questionNumber, isLight && styles.questionNumberLight]}>
             {String(currentQuestion.id).padStart(2, '0')} / {String(QUESTIONS.length).padStart(2, '0')}
           </Text>
-          <Text style={styles.questionTitle}>{currentQuestion.headline}</Text>
+          <Text style={[styles.questionTitle, isLight && styles.questionTitleLight]}>{currentQuestion.headline}</Text>
 
           {currentQuestion.options.map((opt) => {
             const isSelected = selectedValue === opt.key;
@@ -414,17 +428,26 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
                 key={opt.key}
                 onPress={() => handleSelectOption(opt.key)}
                 selected={isSelected}
+                isLight={isLight}
               >
                 <View style={styles.cardHeader}>
-                  <Text style={[styles.cardEmoji, isSelected && styles.textSelected]}>
+                  <Text style={[styles.cardEmoji, isSelected && (isLight ? styles.textSelectedLight : styles.textSelected)]}>
                     {opt.emoji}
                   </Text>
-                  <Text style={[styles.cardTitle, isSelected && styles.textSelected]}>
+                  <Text style={[
+                    styles.cardTitle, 
+                    isLight && styles.cardTitleLight,
+                    isSelected && (isLight ? styles.textSelectedLight : styles.textSelected)
+                  ]}>
                     {opt.title}
                   </Text>
                 </View>
                 {opt.description ? (
-                  <Text style={[styles.cardDesc, isSelected && styles.textDescSelected]}>
+                  <Text style={[
+                    styles.cardDesc, 
+                    isLight && styles.cardDescLight,
+                    isSelected && (isLight ? styles.textDescSelectedLight : styles.textDescSelected)
+                  ]}>
                     {opt.description}
                   </Text>
                 ) : null}
@@ -436,11 +459,19 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
         {/* Action Button */}
         <View style={styles.footerContainer}>
           <TouchableOpacity
-            style={[styles.submitButton, !selectedValue && styles.submitButtonDisabled]}
+            style={[
+              styles.submitButton, 
+              isLight && styles.submitButtonLight,
+              !selectedValue && (isLight ? styles.submitButtonDisabledLight : styles.submitButtonDisabled)
+            ]}
             onPress={handleNext}
             disabled={!selectedValue}
           >
-            <Text style={[styles.submitText, !selectedValue && styles.submitTextDisabled]}>
+            <Text style={[
+              styles.submitText, 
+              isLight && styles.submitTextLight,
+              !selectedValue && (isLight ? styles.submitTextDisabledLight : styles.submitTextDisabled)
+            ]}>
               {currentQuestionIndex === QUESTIONS.length - 1 ? 'MAP MY PATH' : 'CONTINUE'}
             </Text>
           </TouchableOpacity>
@@ -453,7 +484,9 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
               key={i}
               style={[
                 styles.dot,
-                i === currentQuestionIndex ? styles.dotActive : styles.dotInactive,
+                i === currentQuestionIndex 
+                  ? (isLight ? styles.dotActiveLight : styles.dotActive) 
+                  : (isLight ? styles.dotInactiveLight : styles.dotInactive),
               ]}
             />
           ))}
@@ -467,6 +500,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#000000',
+  },
+  containerLight: {
+    backgroundColor: '#FFFFFF',
   },
   header: {
     flexDirection: 'row',
@@ -485,6 +521,9 @@ const styles = StyleSheet.create({
     fontFamily: 'Helvetica',
     letterSpacing: 2,
   },
+  backTextLight: {
+    color: '#666666',
+  },
   skipButton: {
     paddingVertical: 8,
     paddingHorizontal: 16,
@@ -495,6 +534,9 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontFamily: 'Helvetica',
     letterSpacing: 2,
+  },
+  skipTextLight: {
+    color: '#666666',
   },
   scrollContent: {
     paddingHorizontal: 24,
@@ -512,6 +554,9 @@ const styles = StyleSheet.create({
     fontFamily: 'Helvetica',
     marginBottom: 12,
   },
+  brandTitleLight: {
+    color: '#666666',
+  },
   mainTitle: {
     color: '#FFFFFF',
     fontSize: 32,
@@ -520,11 +565,17 @@ const styles = StyleSheet.create({
     lineHeight: 38,
     marginBottom: 12,
   },
+  mainTitleLight: {
+    color: '#000000',
+  },
   subtitle: {
     color: '#888888',
     fontSize: 15,
     fontFamily: 'Helvetica',
     lineHeight: 22,
+  },
+  subtitleLight: {
+    color: '#555555',
   },
   questionSection: {
     marginTop: 10,
@@ -538,6 +589,9 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
     marginBottom: 8,
   },
+  questionNumberLight: {
+    color: '#BBBBBB',
+  },
   questionTitle: {
     color: '#FFFFFF',
     fontSize: 22,
@@ -545,6 +599,9 @@ const styles = StyleSheet.create({
     fontFamily: 'Helvetica',
     lineHeight: 28,
     marginBottom: 24,
+  },
+  questionTitleLight: {
+    color: '#000000',
   },
   card: {
     borderRadius: 0,
@@ -565,9 +622,17 @@ const styles = StyleSheet.create({
     backgroundColor: '#000000',
     borderColor: '#222222',
   },
+  cardUnselectedLight: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#EAEAEA',
+  },
   cardSelected: {
     backgroundColor: '#FFFFFF',
     borderColor: '#FFFFFF',
+  },
+  cardSelectedLight: {
+    backgroundColor: '#000000',
+    borderColor: '#000000',
   },
   cardTitle: {
     color: '#FFFFFF',
@@ -576,6 +641,9 @@ const styles = StyleSheet.create({
     fontFamily: 'Helvetica',
     flex: 1,
   },
+  cardTitleLight: {
+    color: '#000000',
+  },
   cardDesc: {
     color: '#888888',
     fontSize: 13,
@@ -583,11 +651,20 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     paddingLeft: 28, // Offset align with text
   },
+  cardDescLight: {
+    color: '#555555',
+  },
   textSelected: {
     color: '#000000',
   },
+  textSelectedLight: {
+    color: '#FFFFFF',
+  },
   textDescSelected: {
     color: '#444444',
+  },
+  textDescSelectedLight: {
+    color: '#BBBBBB',
   },
   footerContainer: {
     marginTop: 10,
@@ -599,10 +676,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: 0,
   },
+  submitButtonLight: {
+    backgroundColor: '#000000',
+  },
   submitButtonDisabled: {
     backgroundColor: '#000000',
     borderWidth: 1,
     borderColor: '#222222',
+  },
+  submitButtonDisabledLight: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#EAEAEA',
   },
   submitText: {
     color: '#000000',
@@ -611,8 +696,14 @@ const styles = StyleSheet.create({
     fontFamily: 'Helvetica',
     letterSpacing: 3,
   },
+  submitTextLight: {
+    color: '#FFFFFF',
+  },
   submitTextDisabled: {
     color: '#444444',
+  },
+  submitTextDisabledLight: {
+    color: '#CCCCCC',
   },
   dotsRow: {
     flexDirection: 'row',
@@ -630,14 +721,24 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     width: 16,
   },
+  dotActiveLight: {
+    backgroundColor: '#000000',
+    width: 16,
+  },
   dotInactive: {
     backgroundColor: '#333333',
+  },
+  dotInactiveLight: {
+    backgroundColor: '#EAEAEA',
   },
   handoffContainer: {
     flex: 1,
     backgroundColor: '#000000',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  handoffContainerLight: {
+    backgroundColor: '#FFFFFF',
   },
   handoffContent: {
     width: '80%',
@@ -651,15 +752,24 @@ const styles = StyleSheet.create({
     fontFamily: 'Helvetica',
     marginBottom: 30,
   },
+  handoffBrandLight: {
+    color: '#BBBBBB',
+  },
   progressTrack: {
     width: '100%',
     height: 2,
     backgroundColor: '#222222',
     marginBottom: 24,
   },
+  progressTrackLight: {
+    backgroundColor: '#EAEAEA',
+  },
   progressFill: {
     height: 2,
     backgroundColor: '#FFFFFF',
+  },
+  progressFillLight: {
+    backgroundColor: '#000000',
   },
   handoffText: {
     color: '#FFFFFF',
@@ -668,5 +778,8 @@ const styles = StyleSheet.create({
     fontFamily: 'Helvetica',
     letterSpacing: 2,
     textAlign: 'center',
+  },
+  handoffTextLight: {
+    color: '#000000',
   },
 });

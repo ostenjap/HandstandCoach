@@ -16,10 +16,12 @@ interface CoachScreenProps {
   stepId: number;
   onBack: () => void;
   onStepComplete: (stepId: number) => void;
+  theme?: 'light' | 'dark';
 }
 
-export default function CoachScreen({ stepId, onBack, onStepComplete }: CoachScreenProps) {
+export default function CoachScreen({ stepId, onBack, onStepComplete, theme = 'dark' }: CoachScreenProps) {
   const step = DRILL_STEPS.find((s) => s.id === stepId) || DRILL_STEPS[0];
+  const isLight = theme === 'light';
 
   const {
     feedback,
@@ -43,32 +45,36 @@ export default function CoachScreen({ stepId, onBack, onStepComplete }: CoachScr
   }, [feedback?.holdTime, feedback?.isSuccess, stepId, step.targetPRSeconds]);
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#000000" hidden={true} />
+    <View style={[styles.container, isLight && styles.containerLight]}>
+      <StatusBar 
+        barStyle={isLight ? "dark-content" : "light-content"} 
+        backgroundColor={isLight ? "#FFFFFF" : "#000000"} 
+        hidden={true} 
+      />
 
       {/* Background (simulation mode — no live camera). The real vision-camera
           feed gets plugged back in here when on-device inference is restored. */}
-      <View style={styles.simBackground} />
+      <View style={[styles.simBackground, isLight && styles.simBackgroundLight]} />
 
-      {/* Dark Overlay Tint */}
-      <View style={styles.cameraTint} />
+      {/* Tint Overlay */}
+      <View style={[styles.cameraTint, isLight && styles.cameraTintLight]} />
 
       {/* Simulation-mode badge */}
-      <View style={styles.simModeBadge} pointerEvents="none">
-        <Text style={styles.simModeBadgeText}>SIMULATION MODE</Text>
+      <View style={[styles.simModeBadge, isLight && styles.simModeBadgeLight]} pointerEvents="none">
+        <Text style={[styles.simModeBadgeText, isLight && styles.simModeBadgeTextLight]}>SIMULATION MODE</Text>
       </View>
 
-      {/* Custom B&W HUD Overlay */}
+      {/* Custom HUD Overlay */}
       <SafeAreaView style={styles.hudOverlay}>
         
         {/* HUD Header */}
         <View style={styles.hudHeader}>
-          <TouchableOpacity style={styles.backBtn} onPress={onBack}>
-            <Text style={styles.backBtnText}>← PATHWAY</Text>
+          <TouchableOpacity style={[styles.backBtn, isLight && styles.backBtnLight]} onPress={onBack}>
+            <Text style={[styles.backBtnText, isLight && styles.backBtnTextLight]}>← PATHWAY</Text>
           </TouchableOpacity>
           <View style={styles.headerTitleGroup}>
-            <Text style={styles.hudSubtitle}>{step.subtitle}</Text>
-            <Text style={styles.hudTitle}>{step.name}</Text>
+            <Text style={[styles.hudSubtitle, isLight && styles.hudSubtitleLight]}>{step.subtitle}</Text>
+            <Text style={[styles.hudTitle, isLight && styles.hudTitleLight]}>{step.name}</Text>
           </View>
         </View>
 
@@ -77,30 +83,30 @@ export default function CoachScreen({ stepId, onBack, onStepComplete }: CoachScr
           
           <View style={styles.metricRow}>
             {/* Timer Card */}
-            <View style={styles.metricCard}>
-              <Text style={styles.metricLabel}>{step.type === 'reps' ? 'REPS' : 'HOLD TIME'}</Text>
-              <Text style={styles.metricValue}>
+            <View style={[styles.metricCard, isLight && styles.metricCardLight]}>
+              <Text style={[styles.metricLabel, isLight && styles.metricLabelLight]}>{step.type === 'reps' ? 'REPS' : 'HOLD TIME'}</Text>
+              <Text style={[styles.metricValue, isLight && styles.metricValueLight]}>
                 {feedback ? feedback.holdTime : 0}{step.type === 'reps' ? '' : 's'}
               </Text>
-              <Text style={styles.metricSubText}>Goal: {step.targetPRSeconds}{step.type === 'reps' ? ' reps' : 's'}</Text>
+              <Text style={[styles.metricSubText, isLight && styles.metricSubTextLight]}>Goal: {step.targetPRSeconds}{step.type === 'reps' ? ' reps' : 's'}</Text>
             </View>
 
             {/* Score/Alignment Card */}
-            <View style={styles.metricCard}>
-              <Text style={styles.metricLabel}>ALIGNMENT</Text>
-              <Text style={styles.metricValue}>
+            <View style={[styles.metricCard, isLight && styles.metricCardLight]}>
+              <Text style={[styles.metricLabel, isLight && styles.metricLabelLight]}>ALIGNMENT</Text>
+              <Text style={[styles.metricValue, isLight && styles.metricValueLight]}>
                 {feedback && (feedback.isInverted || stepId === 0 || stepId === 1)
                   ? `${Math.round(feedback.alignmentScore * 100)}%`
                   : '—'}
               </Text>
-              <Text style={styles.metricSubText}>Best PR: {personalRecord}{step.type === 'reps' ? ' reps' : 's'}</Text>
+              <Text style={[styles.metricSubText, isLight && styles.metricSubTextLight]}>Best PR: {personalRecord}{step.type === 'reps' ? ' reps' : 's'}</Text>
             </View>
           </View>
 
           {/* Success Indicator Badge */}
           {feedback && feedback.holdTime >= step.targetPRSeconds && (
-            <View style={styles.successBadge}>
-              <Text style={styles.successBadgeText}>✓ DRILL OBJECTIVE ACHIEVED</Text>
+            <View style={[styles.successBadge, isLight && styles.successBadgeLight]}>
+              <Text style={[styles.successBadgeText, isLight && styles.successBadgeTextLight]}>✓ DRILL OBJECTIVE ACHIEVED</Text>
             </View>
           )}
 
@@ -108,90 +114,138 @@ export default function CoachScreen({ stepId, onBack, onStepComplete }: CoachScr
 
         {/* Coach Feedback Box */}
         <View style={styles.feedbackSection}>
-          <View style={styles.feedbackCard}>
-            <Text style={styles.feedbackLabel}>LIVE COACH</Text>
-            <Text style={styles.feedbackMessage}>
+          <View style={[styles.feedbackCard, isLight && styles.feedbackCardLight]}>
+            <Text style={[styles.feedbackLabel, isLight && styles.feedbackLabelLight]}>LIVE COACH</Text>
+            <Text style={[styles.feedbackMessage, isLight && styles.feedbackMessageLight]}>
               {feedback ? feedback.message : 'Positioning camera...'}
             </Text>
           </View>
         </View>
 
         {/* Simulation Control Panel */}
-        <View style={styles.simPanel}>
-          <Text style={styles.simPanelLabel}>CALIBRATION / SIMULATOR CONTROLS</Text>
+        <View style={[styles.simPanel, isLight && styles.simPanelLight]}>
+          <Text style={[styles.simPanelLabel, isLight && styles.simPanelLabelLight]}>CALIBRATION / SIMULATOR CONTROLS</Text>
           
           {simulationState === 'standing' ? (
-            <TouchableOpacity style={styles.simActionBtn} onPress={triggerKickUp}>
-              <Text style={styles.simActionBtnText}>
+            <TouchableOpacity style={[styles.simActionBtn, isLight && styles.simActionBtnLight]} onPress={triggerKickUp}>
+              <Text style={[styles.simActionBtnText, isLight && styles.simActionBtnTextLight]}>
                 {stepId === 0 || stepId === 1 ? 'START DRILL' : 'KICK UP (START DRILL)'}
               </Text>
             </TouchableOpacity>
           ) : simulationState === 'kicking_up' ? (
             <View style={styles.simLoadingBox}>
-              <ActivityIndicator size="small" color="#FFFFFF" />
-              <Text style={styles.simLoadingText}>
+              <ActivityIndicator size="small" color={isLight ? "#000000" : "#FFFFFF"} />
+              <Text style={[styles.simLoadingText, isLight && styles.simLoadingTextLight]}>
                 {stepId === 0 || stepId === 1 ? 'GETTING READY...' : 'KICKING UP...'}
               </Text>
             </View>
           ) : (
             <View>
-              {/* Form Quality Selector (only show if step has quality options) */}
+              {/* Form Quality Selector */}
               {stepId !== 0 && stepId !== 8 && (
                 <>
-                  <Text style={styles.simQualityLabel}>Simulated Body Posture:</Text>
+                  <Text style={[styles.simQualityLabel, isLight && styles.simQualityLabelLight]}>Simulated Body Posture:</Text>
                   <View style={styles.qualityRow}>
                     <TouchableOpacity
-                      style={[styles.qualityBtn, formQuality === 'perfect' && styles.qualityBtnActive]}
+                      style={[
+                        styles.qualityBtn,
+                        isLight && styles.qualityBtnLight,
+                        formQuality === 'perfect' && (isLight ? styles.qualityBtnActiveLight : styles.qualityBtnActive)
+                      ]}
                       onPress={() => setFormQuality('perfect')}
                     >
-                      <Text style={[styles.qualityText, formQuality === 'perfect' && styles.qualityTextActive]}>
+                      <Text style={[
+                        styles.qualityText,
+                        isLight && styles.qualityTextLight,
+                        formQuality === 'perfect' && (isLight ? styles.qualityTextActiveLight : styles.qualityTextActive)
+                      ]}>
                         Perfect
                       </Text>
                     </TouchableOpacity>
 
                     {stepId === 1 ? (
                       <TouchableOpacity
-                        style={[styles.qualityBtn, formQuality === 'banana_back' && styles.qualityBtnActive]}
+                        style={[
+                          styles.qualityBtn,
+                          isLight && styles.qualityBtnLight,
+                          formQuality === 'banana_back' && (isLight ? styles.qualityBtnActiveLight : styles.qualityBtnActive)
+                        ]}
                         onPress={() => setFormQuality('banana_back')}
                       >
-                        <Text style={[styles.qualityText, formQuality === 'banana_back' && styles.qualityTextActive]}>
+                        <Text style={[
+                          styles.qualityText,
+                          isLight && styles.qualityTextLight,
+                          formQuality === 'banana_back' && (isLight ? styles.qualityTextActiveLight : styles.qualityTextActive)
+                        ]}>
                           Banana Back
                         </Text>
                       </TouchableOpacity>
                     ) : (stepId === 4 || stepId === 5 || stepId === 9) ? (
                       <TouchableOpacity
-                        style={[styles.qualityBtn, formQuality === 'plunging' && styles.qualityBtnActive]}
+                        style={[
+                          styles.qualityBtn,
+                          isLight && styles.qualityBtnLight,
+                          formQuality === 'plunging' && (isLight ? styles.qualityBtnActiveLight : styles.qualityBtnActive)
+                        ]}
                         onPress={() => setFormQuality('plunging')}
                       >
-                        <Text style={[styles.qualityText, formQuality === 'plunging' && styles.qualityTextActive]}>
+                        <Text style={[
+                          styles.qualityText,
+                          isLight && styles.qualityTextLight,
+                          formQuality === 'plunging' && (isLight ? styles.qualityTextActiveLight : styles.qualityTextActive)
+                        ]}>
                           Plunging
                         </Text>
                       </TouchableOpacity>
                     ) : stepId === 10 ? (
                       <TouchableOpacity
-                        style={[styles.qualityBtn, formQuality === 'wall_rest' && styles.qualityBtnActive]}
+                        style={[
+                          styles.qualityBtn,
+                          isLight && styles.qualityBtnLight,
+                          formQuality === 'wall_rest' && (isLight ? styles.qualityBtnActiveLight : styles.qualityBtnActive)
+                        ]}
                         onPress={() => setFormQuality('wall_rest')}
                       >
-                        <Text style={[styles.qualityText, formQuality === 'wall_rest' && styles.qualityTextActive]}>
+                        <Text style={[
+                          styles.qualityText,
+                          isLight && styles.qualityTextLight,
+                          formQuality === 'wall_rest' && (isLight ? styles.qualityTextActiveLight : styles.qualityTextActive)
+                        ]}>
                           Wall Rest
                         </Text>
                       </TouchableOpacity>
                     ) : (
                       <>
                         <TouchableOpacity
-                          style={[styles.qualityBtn, formQuality === 'banana_back' && styles.qualityBtnActive]}
+                          style={[
+                            styles.qualityBtn,
+                            isLight && styles.qualityBtnLight,
+                            formQuality === 'banana_back' && (isLight ? styles.qualityBtnActiveLight : styles.qualityBtnActive)
+                          ]}
                           onPress={() => setFormQuality('banana_back')}
                         >
-                          <Text style={[styles.qualityText, formQuality === 'banana_back' && styles.qualityTextActive]}>
-                            Banana Back
+                          <Text style={[
+                            styles.qualityText,
+                            isLight && styles.qualityTextLight,
+                            formQuality === 'banana_back' && (isLight ? styles.qualityTextActiveLight : styles.qualityTextActive)
+                          ]}>
+                            Banana
                           </Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity
-                          style={[styles.qualityBtn, formQuality === 'plunging' && styles.qualityBtnActive]}
+                          style={[
+                            styles.qualityBtn,
+                            isLight && styles.qualityBtnLight,
+                            formQuality === 'plunging' && (isLight ? styles.qualityBtnActiveLight : styles.qualityBtnActive)
+                          ]}
                           onPress={() => setFormQuality('plunging')}
                         >
-                          <Text style={[styles.qualityText, formQuality === 'plunging' && styles.qualityTextActive]}>
+                          <Text style={[
+                            styles.qualityText,
+                            isLight && styles.qualityTextLight,
+                            formQuality === 'plunging' && (isLight ? styles.qualityTextActiveLight : styles.qualityTextActive)
+                          ]}>
                             Plunging
                           </Text>
                         </TouchableOpacity>
@@ -201,8 +255,16 @@ export default function CoachScreen({ stepId, onBack, onStepComplete }: CoachScr
                 </>
               )}
 
-              <TouchableOpacity style={[styles.simActionBtn, styles.exitDrillBtn]} onPress={triggerFallDown}>
-                <Text style={styles.simActionBtnText}>
+              <TouchableOpacity 
+                style={[
+                  styles.simActionBtn, 
+                  isLight && styles.simActionBtnLight,
+                  styles.exitDrillBtn,
+                  isLight && styles.exitDrillBtnLight
+                ]} 
+                onPress={triggerFallDown}
+              >
+                <Text style={[styles.simActionBtnText, isLight && styles.simActionBtnTextLight]}>
                   {stepId === 0 || stepId === 1 ? 'STOP DRILL' : (stepId === 8 ? 'SAFE BAIL (EXIT DRILL)' : 'FALL DOWN (STOP DRILL)')}
                 </Text>
               </TouchableOpacity>
@@ -219,6 +281,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#000000',
+  },
+  containerLight: {
+    backgroundColor: '#FFFFFF',
   },
   centerContainer: {
     flex: 1,
@@ -238,9 +303,15 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFill,
     backgroundColor: '#0a0a0a',
   },
+  simBackgroundLight: {
+    backgroundColor: '#F0F0F0',
+  },
   cameraTint: {
     ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0, 0, 0, 0.45)', // B&W cinematic tint
+  },
+  cameraTintLight: {
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
   },
   simModeBadge: {
     position: 'absolute',
@@ -252,12 +323,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 3,
   },
+  simModeBadgeLight: {
+    borderColor: '#CCCCCC',
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+  },
   simModeBadgeText: {
     color: '#666666',
     fontSize: 8,
     fontWeight: 'bold',
     fontFamily: 'Helvetica',
     letterSpacing: 2,
+  },
+  simModeBadgeTextLight: {
+    color: '#333333',
   },
   text: {
     color: '#888888',
@@ -313,12 +391,19 @@ const styles = StyleSheet.create({
     marginRight: 16,
     backgroundColor: 'rgba(0, 0, 0, 0.8)',
   },
+  backBtnLight: {
+    borderColor: '#CCCCCC',
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+  },
   backBtnText: {
     color: '#FFFFFF',
     fontSize: 10,
     fontWeight: 'bold',
     fontFamily: 'Helvetica',
     letterSpacing: 1.5,
+  },
+  backBtnTextLight: {
+    color: '#000000',
   },
   headerTitleGroup: {
     flex: 1,
@@ -330,12 +415,18 @@ const styles = StyleSheet.create({
     fontFamily: 'Helvetica',
     letterSpacing: 1.5,
   },
+  hudSubtitleLight: {
+    color: '#666666',
+  },
   hudTitle: {
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '900',
     fontFamily: 'Helvetica',
     marginTop: 2,
+  },
+  hudTitleLight: {
+    color: '#000000',
   },
   metricsContainer: {
     marginVertical: 10,
@@ -352,6 +443,10 @@ const styles = StyleSheet.create({
     padding: 16,
     marginHorizontal: 4,
   },
+  metricCardLight: {
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderColor: '#EAEAEA',
+  },
   metricLabel: {
     color: '#666666',
     fontSize: 8,
@@ -360,17 +455,26 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
     marginBottom: 4,
   },
+  metricLabelLight: {
+    color: '#777777',
+  },
   metricValue: {
     color: '#FFFFFF',
     fontSize: 28,
     fontWeight: '900',
     fontFamily: 'Helvetica',
   },
+  metricValueLight: {
+    color: '#000000',
+  },
   metricSubText: {
     color: '#555555',
     fontSize: 10,
     fontFamily: 'Helvetica',
     marginTop: 4,
+  },
+  metricSubTextLight: {
+    color: '#777777',
   },
   successBadge: {
     backgroundColor: '#FFFFFF',
@@ -379,12 +483,18 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginHorizontal: 4,
   },
+  successBadgeLight: {
+    backgroundColor: '#000000',
+  },
   successBadgeText: {
     color: '#000000',
     fontSize: 10,
     fontWeight: '900',
     fontFamily: 'Helvetica',
     letterSpacing: 1.5,
+  },
+  successBadgeTextLight: {
+    color: '#FFFFFF',
   },
   feedbackSection: {
     marginVertical: 10,
@@ -395,6 +505,10 @@ const styles = StyleSheet.create({
     borderColor: '#FFFFFF',
     padding: 20,
   },
+  feedbackCardLight: {
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderColor: '#000000',
+  },
   feedbackLabel: {
     color: '#666666',
     fontSize: 8,
@@ -403,6 +517,9 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
     marginBottom: 6,
   },
+  feedbackLabelLight: {
+    color: '#777777',
+  },
   feedbackMessage: {
     color: '#FFFFFF',
     fontSize: 15,
@@ -410,12 +527,19 @@ const styles = StyleSheet.create({
     fontFamily: 'Helvetica',
     lineHeight: 20,
   },
+  feedbackMessageLight: {
+    color: '#000000',
+  },
   simPanel: {
     backgroundColor: 'rgba(0, 0, 0, 0.95)',
     borderWidth: 1,
     borderColor: '#1a1a1a',
     padding: 16,
     marginBottom: 10,
+  },
+  simPanelLight: {
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderColor: '#EAEAEA',
   },
   simPanelLabel: {
     color: '#444444',
@@ -426,10 +550,16 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     textAlign: 'center',
   },
+  simPanelLabelLight: {
+    color: '#777777',
+  },
   simActionBtn: {
     backgroundColor: '#FFFFFF',
     paddingVertical: 14,
     alignItems: 'center',
+  },
+  simActionBtnLight: {
+    backgroundColor: '#000000',
   },
   exitDrillBtn: {
     backgroundColor: '#000000',
@@ -437,12 +567,19 @@ const styles = StyleSheet.create({
     borderColor: '#333333',
     marginTop: 8,
   },
+  exitDrillBtnLight: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#CCCCCC',
+  },
   simActionBtnText: {
     color: '#000000',
     fontSize: 11,
     fontWeight: 'bold',
     fontFamily: 'Helvetica',
     letterSpacing: 1.5,
+  },
+  simActionBtnTextLight: {
+    color: '#FFFFFF',
   },
   simLoadingBox: {
     flexDirection: 'row',
@@ -458,11 +595,17 @@ const styles = StyleSheet.create({
     marginLeft: 10,
     letterSpacing: 1,
   },
+  simLoadingTextLight: {
+    color: '#000000',
+  },
   simQualityLabel: {
     color: '#888888',
     fontSize: 10,
     fontFamily: 'Helvetica',
     marginBottom: 8,
+  },
+  simQualityLabelLight: {
+    color: '#666666',
   },
   qualityRow: {
     flexDirection: 'row',
@@ -478,9 +621,17 @@ const styles = StyleSheet.create({
     marginHorizontal: 3,
     backgroundColor: '#000000',
   },
+  qualityBtnLight: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#EAEAEA',
+  },
   qualityBtnActive: {
     borderColor: '#FFFFFF',
     backgroundColor: '#FFFFFF',
+  },
+  qualityBtnActiveLight: {
+    borderColor: '#000000',
+    backgroundColor: '#000000',
   },
   qualityText: {
     color: '#888888',
@@ -488,7 +639,13 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontFamily: 'Helvetica',
   },
+  qualityTextLight: {
+    color: '#777777',
+  },
   qualityTextActive: {
     color: '#000000',
+  },
+  qualityTextActiveLight: {
+    color: '#FFFFFF',
   },
 });
