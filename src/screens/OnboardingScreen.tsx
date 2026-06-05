@@ -96,30 +96,6 @@ const QUESTIONS: Question[] = [
   },
   {
     id: 3,
-    headline: 'Where will you be practicing most often?',
-    options: [
-      {
-        key: 'home',
-        emoji: '🏠',
-        title: 'Living Room / Bedroom',
-        description: 'Clear wall space and soft flooring at home.',
-      },
-      {
-        key: 'gym',
-        emoji: '🏋️',
-        title: 'At the Gym',
-        description: 'Wall space, plyo boxes, and gym mats available.',
-      },
-      {
-        key: 'outdoors',
-        emoji: '🌳',
-        title: 'Outdoors / Park',
-        description: 'Open grass or concrete, no dedicated wall space.',
-      },
-    ],
-  },
-  {
-    id: 4,
     headline: 'Handstands require frequency, not hours. How many days a week can you give me 5 minutes?',
     options: [
       {
@@ -207,8 +183,7 @@ export default function OnboardingScreen({ onComplete, theme = 'dark' }: Onboard
     switch (index) {
       case 0: return 'level';
       case 1: return 'struggle';
-      case 2: return 'environment';
-      case 3: return 'commitment';
+      case 2: return 'commitment';
       default: return '';
     }
   };
@@ -304,7 +279,6 @@ export default function OnboardingScreen({ onComplete, theme = 'dark' }: Onboard
   const completeOnboarding = async () => {
     const level = answers.level;
     const struggle = answers.struggle;
-    const environment = answers.environment;
     const commitment = answers.commitment;
 
     let recommendedStepId = 0;
@@ -336,7 +310,7 @@ export default function OnboardingScreen({ onComplete, theme = 'dark' }: Onboard
       hasCompletedOnboarding: true,
       startingLevel: level as any,
       biggestStruggle: struggle as any,
-      practiceEnvironment: environment as any,
+      practiceEnvironment: 'home',
       weeklyCommitment: commitment as any,
       recommendedStepId,
       completedSteps: [],
