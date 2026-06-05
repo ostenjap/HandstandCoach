@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -8,9 +8,25 @@ import {
   SafeAreaView,
   StatusBar,
 } from 'react-native';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import { usePoseCoach } from '../coaching/usePoseCoach';
-import { DRILL_STEPS, DrillStep } from '../coaching/poseTypes';
+import { DRILL_STEPS, DrillStep, Pose, KeypointName } from '../coaching/poseTypes';
 import { completeStep } from '../coaching/userStore';
+
+const SKELETON_CONNECTIONS = [
+  ['leftShoulder', 'rightShoulder'],
+  ['leftShoulder', 'leftElbow'],
+  ['leftElbow', 'leftWrist'],
+  ['rightShoulder', 'rightElbow'],
+  ['rightElbow', 'rightWrist'],
+  ['leftShoulder', 'leftHip'],
+  ['rightShoulder', 'rightHip'],
+  ['leftHip', 'rightHip'],
+  ['leftHip', 'leftKnee'],
+  ['leftKnee', 'leftAnkle'],
+  ['rightHip', 'rightKnee'],
+  ['rightKnee', 'rightAnkle'],
+] as const;
 
 interface CoachScreenProps {
   stepId: number;
@@ -22,6 +38,9 @@ interface CoachScreenProps {
 export default function CoachScreen({ stepId, onBack, onStepComplete, theme = 'dark' }: CoachScreenProps) {
   const step = DRILL_STEPS.find((s) => s.id === stepId) || DRILL_STEPS[0];
   const isLight = theme === 'light';
+
+  const [permission, requestPermission] = useCameraPermissions();
+  const [layout, setLayout] = useState({ width: 0, height: 0 });
 
   const {
     feedback,
@@ -35,6 +54,13 @@ export default function CoachScreen({ stepId, onBack, onStepComplete, theme = 'd
     personalRecord,
   } = usePoseCoach(stepId);
 
+  // Auto-request camera permission on mount if not yet decided
+  useEffect(() => {
+    if (permission && !permission.granted && permission.canAskAgain) {
+      requestPermission();
+    }
+  }, [permission]);
+
   // Auto-complete step in storage when target hold time is achieved
   useEffect(() => {
     if (feedback && feedback.holdTime >= step.targetPRSeconds && feedback.isSuccess) {
@@ -44,24 +70,165 @@ export default function CoachScreen({ stepId, onBack, onStepComplete, theme = 'd
     }
   }, [feedback?.holdTime, feedback?.isSuccess, stepId, step.targetPRSeconds]);
 
+  const renderBones = () => {
+    if (!activePose || layout.width === 0 || layout.height === 0) return null;
+    return SKELETON_CONNECTIONS.map(([jointA, jointB], index) => {
+      const kpA = activePose[jointA as KeypointName];
+      const kpB = activePose[jointB as KeypointName];
+      if (!kpA || !kpB || kpA.score < 0.3 || kpB.score < 0.3) return null;
+
+      const x1 = kpA.x * layout.width;
+      const y1 = kpA.y * layout.height;
+      const x2 = kpB.x * layout.width;
+      const y2 = kpB.y * layout.height;
+
+      const dx = x2 - x1;
+      const dy = y2 - y1;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      const angle = Math.atan2(dy, dx);
+      const midX = (x1 + x2) / 2;
+      const midY = (y1 + y2) / 2;
+
+      return (
+        <View
+          key={`bone-${index}`}
+          style={{
+            position: 'absolute',
+            left: midX - distance / 2,
+            top: midY - 1.5,
+            width: distance,
+            height: 3,
+            backgroundColor: isLight ? 'rgba(0, 0, 0, 0.35)' : 'rgba(0, 255, 204, 0.45)',
+            transform: [{ rotate: `${angle}rad` }],
+          }}
+          pointerEvents="none"
+        />
+      );
+    });
+  };
+
+  const renderJoints = () => {
+    if (!activePose || layout.width === 0 || layout.height === 0) return null;
+    return Object.keys(activePose).map((jointName) => {
+      const kp = activePose[jointName as KeypointName];
+      if (!kp || kp.score < 0.3) return null;
+
+      const px = kp.x * layout.width;
+      const py = kp.y * layout.height;
+      
+      const isPrimaryJoint = [
+        'leftWrist', 'rightWrist', 
+        'leftShoulder', 'rightShoulder', 
+        'leftHip', 'rightHip',
+        'leftAnkle', 'rightAnkle', 
+        'nose'
+      ].includes(jointName);
+
+      const neonColor = isLight ? '#0055FF' : '#00FFCC';
+      
+      return (
+        <View
+          key={`joint-${jointName}`}
+          style={{
+            position: 'absolute',
+            left: px - (isPrimaryJoint ? 10 : 5),
+            top: py - (isPrimaryJoint ? 10 : 5),
+            width: isPrimaryJoint ? 20 : 10,
+            height: isPrimaryJoint ? 20 : 10,
+            justifyContent: 'center',
+            alignItems: 'center',
+          }}
+          pointerEvents="none"
+        >
+          {isPrimaryJoint && (
+            <View
+              style={{
+                position: 'absolute',
+                width: 20,
+                height: 20,
+                borderRadius: 10,
+                borderWidth: 1.5,
+                borderColor: neonColor,
+                opacity: 0.6,
+                borderStyle: 'dashed',
+              }}
+            />
+          )}
+          <View
+            style={{
+              width: 6,
+              height: 6,
+              borderRadius: 3,
+              backgroundColor: neonColor,
+              shadowColor: neonColor,
+              shadowOffset: { width: 0, height: 0 },
+              shadowOpacity: 0.8,
+              shadowRadius: 4,
+              elevation: 3,
+            }}
+          />
+        </View>
+      );
+    });
+  };
+
+  if (!permission) {
+    return (
+      <View style={[styles.centerContainer, isLight && styles.centerContainerLight]}>
+        <ActivityIndicator size="large" color={isLight ? "#000000" : "#FFFFFF"} />
+      </View>
+    );
+  }
+
+  if (!permission.granted) {
+    return (
+      <SafeAreaView style={[styles.permissionContainer, isLight && styles.permissionContainerLight]}>
+        <View style={[styles.permissionCard, isLight && styles.permissionCardLight]}>
+          <Text style={[styles.permissionTitle, isLight && styles.permissionTitleLight]}>CAMERA ACCESS REQUIRED</Text>
+          <Text style={[styles.permissionText, isLight && styles.permissionTextLight]}>
+            Gravity needs camera access to analyze your pose and provide real-time coaching.
+          </Text>
+          <TouchableOpacity style={[styles.btn, isLight && styles.btnLight]} onPress={requestPermission}>
+            <Text style={[styles.btnText, isLight && styles.btnTextLight]}>GRANT PERMISSION</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.backBtnTextOnly} onPress={onBack}>
+            <Text style={[styles.cancelText, isLight && styles.cancelTextLight]}>← GO BACK</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
-    <View style={[styles.container, isLight && styles.containerLight]}>
+    <View 
+      style={[styles.container, isLight && styles.containerLight]}
+      onLayout={(event) => {
+        const { width, height } = event.nativeEvent.layout;
+        setLayout({ width, height });
+      }}
+    >
       <StatusBar 
         barStyle={isLight ? "dark-content" : "light-content"} 
         backgroundColor={isLight ? "#FFFFFF" : "#000000"} 
         hidden={true} 
       />
 
-      {/* Background (simulation mode — no live camera). The real vision-camera
-          feed gets plugged back in here when on-device inference is restored. */}
-      <View style={[styles.simBackground, isLight && styles.simBackgroundLight]} />
+      {/* Camera Live Background */}
+      <CameraView 
+        style={StyleSheet.absoluteFill}
+        facing="front"
+      />
 
       {/* Tint Overlay */}
       <View style={[styles.cameraTint, isLight && styles.cameraTintLight]} />
 
+      {/* CV Skeleton Overlay */}
+      {renderBones()}
+      {renderJoints()}
+
       {/* Simulation-mode badge */}
       <View style={[styles.simModeBadge, isLight && styles.simModeBadgeLight]} pointerEvents="none">
-        <Text style={[styles.simModeBadgeText, isLight && styles.simModeBadgeTextLight]}>SIMULATION MODE</Text>
+        <Text style={[styles.simModeBadgeText, isLight && styles.simModeBadgeTextLight]}>SCANNING HUD ACTIVE</Text>
       </View>
 
       {/* Custom HUD Overlay */}
@@ -292,6 +459,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#000000',
     padding: 30,
   },
+  centerContainerLight: {
+    backgroundColor: '#FFFFFF',
+  },
   mainTitle: {
     color: '#FFFFFF',
     fontSize: 32,
@@ -354,12 +524,18 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
     alignItems: 'center',
   },
+  btnLight: {
+    backgroundColor: '#000000',
+  },
   btnText: {
     color: '#000000',
     fontSize: 12,
     fontWeight: 'bold',
     fontFamily: 'Helvetica',
     letterSpacing: 2,
+  },
+  btnTextLight: {
+    color: '#FFFFFF',
   },
   backBtnTextOnly: {
     marginTop: 20,
@@ -371,6 +547,9 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontFamily: 'Helvetica',
     letterSpacing: 1,
+  },
+  cancelTextLight: {
+    color: '#888888',
   },
   hudOverlay: {
     flex: 1,
@@ -657,5 +836,51 @@ const styles = StyleSheet.create({
   },
   qualityTextActiveLight: {
     color: '#FFFFFF',
+  },
+  permissionContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#000000',
+    padding: 24,
+  },
+  permissionContainerLight: {
+    backgroundColor: '#FFFFFF',
+  },
+  permissionCard: {
+    backgroundColor: 'rgba(0, 0, 0, 0.95)',
+    borderWidth: 1,
+    borderColor: '#222222',
+    padding: 30,
+    alignItems: 'center',
+    width: '100%',
+    maxWidth: 400,
+  },
+  permissionCardLight: {
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderColor: '#EAEAEA',
+  },
+  permissionTitle: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '900',
+    fontFamily: 'Helvetica',
+    letterSpacing: 2,
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  permissionTitleLight: {
+    color: '#000000',
+  },
+  permissionText: {
+    color: '#888888',
+    fontSize: 14,
+    fontFamily: 'Helvetica',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 30,
+  },
+  permissionTextLight: {
+    color: '#555555',
   },
 });
