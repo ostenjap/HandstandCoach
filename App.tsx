@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, ActivityIndicator, BackHandler, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import OnboardingScreen from './src/screens/OnboardingScreen';
 import PathwayScreen from './src/screens/PathwayScreen';
@@ -14,6 +14,41 @@ export default function App() {
   const [activeStepId, setActiveStepId] = useState<number | null>(null);
   const [selectedStepSheet, setSelectedStepSheet] = useState<DrillStep | null>(null);
   const [sheetVisible, setSheetVisible] = useState(false);
+
+  // Handle Android hardware back button
+  useEffect(() => {
+    const handleBackButton = () => {
+      if (sheetVisible) {
+        setSheetVisible(false);
+        return true; // consumed
+      }
+      if (activeStepId !== null) {
+        setActiveStepId(null);
+        return true; // consumed
+      }
+
+      // We are on PathwayScreen: alert before exiting
+      Alert.alert(
+        'Exit App',
+        'Are you sure you want to exit Gravity?',
+        [
+          { text: 'Cancel', style: 'cancel', onPress: () => {} },
+          { text: 'Exit', onPress: () => BackHandler.exitApp() },
+        ],
+        { cancelable: true }
+      );
+      return true; // consumed
+    };
+
+    const subscription = BackHandler.addEventListener(
+      'hardwareBackPress',
+      handleBackButton
+    );
+
+    return () => {
+      subscription.remove();
+    };
+  }, [sheetVisible, activeStepId]);
 
   // Load profile from storage at startup
   useEffect(() => {

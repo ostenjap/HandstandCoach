@@ -30,10 +30,9 @@ export default function PathwayScreen({
   onUpdateSettings,
 }: PathwayScreenProps) {
   const pulseAnim = useRef(new Animated.Value(1)).current;
-  const [fearPopupDismissed, setFearPopupDismissed] = useState(false);
   const [settingsVisible, setSettingsVisible] = useState(false);
 
-  const showFearPopup = profile.biggestStruggle === 'fear' && !fearPopupDismissed && !profile.completedSteps.includes(8);
+  const showFearPopup = profile.biggestStruggle === 'fear' && !profile.hasDismissedFearPopup && !profile.completedSteps.includes(8);
   const isLight = profile.theme === 'light';
 
   // Pulsing animation for the recommended step node
@@ -61,6 +60,8 @@ export default function PathwayScreen({
     if (profile.godMode) return true;
     if (stepId <= profile.recommendedStepId) return true;
     if (stepId === 0) return true;
+    // Special unlock: if biggestStruggle is fear, unlock Step 8 (Safety Bail) immediately
+    if (stepId === 8 && profile.biggestStruggle === 'fear') return true;
     // Unlocked if previous step is completed
     return profile.completedSteps.includes(stepId - 1);
   };
@@ -276,7 +277,7 @@ export default function PathwayScreen({
         visible={showFearPopup}
         transparent={true}
         animationType="fade"
-        onRequestClose={() => setFearPopupDismissed(true)}
+        onRequestClose={() => onUpdateSettings({ hasDismissedFearPopup: true })}
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, isLight && styles.modalContentLight]}>
@@ -289,7 +290,7 @@ export default function PathwayScreen({
             </Text>
             <TouchableOpacity
               style={[styles.modalButton, isLight && styles.modalButtonLight]}
-              onPress={() => setFearPopupDismissed(true)}
+              onPress={() => onUpdateSettings({ hasDismissedFearPopup: true })}
             >
               <Text style={[styles.modalButtonText, isLight && styles.modalButtonTextLight]}>I AM READY</Text>
             </TouchableOpacity>

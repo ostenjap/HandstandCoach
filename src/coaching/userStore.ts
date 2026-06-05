@@ -80,6 +80,7 @@ export interface UserProfile {
   personalRecords: Record<number, number>; // stepId -> bestHoldTimeSeconds
   theme: 'light' | 'dark';
   godMode: boolean;
+  hasDismissedFearPopup: boolean;
 }
 
 const STORAGE_KEY = '@handstand_coach_profile_v1';
@@ -108,6 +109,7 @@ export const DEFAULT_PROFILE: UserProfile = {
   },
   theme: 'dark',
   godMode: false,
+  hasDismissedFearPopup: false,
 };
 
 export async function loadUserProfile(): Promise<UserProfile> {

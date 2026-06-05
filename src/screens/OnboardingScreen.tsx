@@ -10,6 +10,7 @@ import {
   TouchableWithoutFeedback,
   ScrollView,
   Dimensions,
+  BackHandler,
 } from 'react-native';
 import { saveUserProfile, DEFAULT_PROFILE, UserProfile } from '../coaching/userStore';
 
@@ -176,6 +177,30 @@ export default function OnboardingScreen({ onComplete, theme = 'dark' }: Onboard
   const progressAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(1)).current;
   
+  const [showIntro, setShowIntro] = useState(true);
+  const floatAnim = useRef(new Animated.Value(0)).current;
+  const introFadeAnim = useRef(new Animated.Value(1)).current;
+
+  // Continuous floating logo animation
+  useEffect(() => {
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatAnim, {
+          toValue: -8,
+          duration: 2200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(floatAnim, {
+          toValue: 0,
+          duration: 2200,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    animation.start();
+    return () => animation.stop();
+  }, [floatAnim]);
+  
   const isLight = theme === 'light';
 
   // Determine question keys
@@ -235,6 +260,22 @@ export default function OnboardingScreen({ onComplete, theme = 'dark' }: Onboard
     }
   };
 
+  const handleStartOnboarding = () => {
+    Animated.timing(introFadeAnim, {
+      toValue: 0,
+      duration: 250,
+      useNativeDriver: true,
+    }).start(() => {
+      setShowIntro(false);
+      fadeAnim.setValue(0);
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 350,
+        useNativeDriver: true,
+      }).start();
+    });
+  };
+
   const handleBack = () => {
     if (currentQuestionIndex > 0) {
       Animated.timing(fadeAnim, {
@@ -249,8 +290,41 @@ export default function OnboardingScreen({ onComplete, theme = 'dark' }: Onboard
           useNativeDriver: true,
         }).start();
       });
+    } else {
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 150,
+        useNativeDriver: true,
+      }).start(() => {
+        setShowIntro(true);
+        introFadeAnim.setValue(0);
+        Animated.timing(introFadeAnim, {
+          toValue: 1,
+          duration: 250,
+          useNativeDriver: true,
+        }).start();
+      });
     }
   };
+
+  useEffect(() => {
+    const handleBackButton = () => {
+      if (!showIntro) {
+        handleBack();
+        return true; // consumed
+      }
+      return false; // not consumed
+    };
+
+    const subscription = BackHandler.addEventListener(
+      'hardwareBackPress',
+      handleBackButton
+    );
+
+    return () => {
+      subscription.remove();
+    };
+  }, [showIntro, currentQuestionIndex]);
 
   const startHandoffSequence = () => {
     setIsHandoff(true);
@@ -356,6 +430,49 @@ export default function OnboardingScreen({ onComplete, theme = 'dark' }: Onboard
 
   const currentQuestion = QUESTIONS[currentQuestionIndex];
 
+  if (showIntro) {
+    return (
+      <SafeAreaView style={[styles.container, isLight && styles.containerLight]}>
+        <StatusBar 
+          barStyle={isLight ? "dark-content" : "light-content"} 
+          backgroundColor={isLight ? "#FFFFFF" : "#000000"} 
+        />
+        
+        {/* Header containing SKIP button at top right */}
+        <View style={styles.header}>
+          <View />
+          <TouchableOpacity style={styles.skipButton} onPress={handleSkip}>
+            <Text style={[styles.skipText, isLight && styles.skipTextLight]}>SKIP</Text>
+          </TouchableOpacity>
+        </View>
+
+        <Animated.View style={[styles.introScreen, { opacity: introFadeAnim }]}>
+          {/* Animated floating logo */}
+          <Animated.View style={[styles.introLogoContainer, { transform: [{ translateY: floatAnim }] }]}>
+            <Text style={[styles.introLogoText, isLight && styles.introLogoTextLight]}>
+              DEFY GRAVITY
+            </Text>
+          </Animated.View>
+
+          {/* Calibrate subtitle */}
+          <Text style={[styles.introCalibrateText, isLight && styles.introCalibrateTextLight]}>
+            lets calibrate your gravity
+          </Text>
+
+          {/* CTA Button */}
+          <TouchableOpacity
+            style={[styles.introButton, isLight && styles.introButtonLight]}
+            onPress={handleStartOnboarding}
+          >
+            <Text style={[styles.introButtonText, isLight && styles.introButtonTextLight]}>
+              BEGIN CALIBRATION
+            </Text>
+          </TouchableOpacity>
+        </Animated.View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={[styles.container, isLight && styles.containerLight]}>
       <StatusBar 
@@ -365,30 +482,15 @@ export default function OnboardingScreen({ onComplete, theme = 'dark' }: Onboard
 
       {/* Header Back / Skip */}
       <View style={styles.header}>
-        {currentQuestionIndex > 0 ? (
-          <TouchableOpacity style={styles.backButton} onPress={handleBack}>
-            <Text style={[styles.backText, isLight && styles.backTextLight]}>← BACK</Text>
-          </TouchableOpacity>
-        ) : (
-          <View />
-        )}
+        <TouchableOpacity style={styles.backButton} onPress={handleBack}>
+          <Text style={[styles.backText, isLight && styles.backTextLight]}>← BACK</Text>
+        </TouchableOpacity>
         <TouchableOpacity style={styles.skipButton} onPress={handleSkip}>
           <Text style={[styles.skipText, isLight && styles.skipTextLight]}>SKIP</Text>
         </TouchableOpacity>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Intro only shown on first screen */}
-        {currentQuestionIndex === 0 && (
-          <View style={styles.introContainer}>
-            <Text style={[styles.brandTitle, isLight && styles.brandTitleLight]}>GRAVITY</Text>
-            <Text style={[styles.mainTitle, isLight && styles.mainTitleLight]}>Let's calibrate your gravity.</Text>
-            <Text style={[styles.subtitle, isLight && styles.subtitleLight]}>
-              A minimalist handstand coach engineered for zero clutter and absolute form.
-            </Text>
-          </View>
-        )}
-
         <Animated.View style={[styles.questionSection, { opacity: fadeAnim }]}>
           <Text style={[styles.questionNumber, isLight && styles.questionNumberLight]}>
             {String(currentQuestion.id).padStart(2, '0')} / {String(QUESTIONS.length).padStart(2, '0')}
@@ -755,5 +857,61 @@ const styles = StyleSheet.create({
   },
   handoffTextLight: {
     color: '#000000',
+  },
+  introScreen: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 30,
+  },
+  introLogoContainer: {
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  introLogoText: {
+    fontFamily: 'Helvetica',
+    fontSize: 28,
+    fontWeight: '300',
+    letterSpacing: 14,
+    color: '#FFFFFF',
+    textAlign: 'center',
+  },
+  introLogoTextLight: {
+    color: '#000000',
+  },
+  introCalibrateText: {
+    fontFamily: 'Helvetica',
+    fontSize: 13,
+    color: '#888888',
+    letterSpacing: 3,
+    textAlign: 'center',
+    marginTop: 40,
+    lineHeight: 22,
+    textTransform: 'uppercase',
+  },
+  introCalibrateTextLight: {
+    color: '#666666',
+  },
+  introButton: {
+    marginTop: 60,
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 18,
+    paddingHorizontal: 36,
+    borderRadius: 0,
+    alignSelf: 'stretch',
+    alignItems: 'center',
+  },
+  introButtonLight: {
+    backgroundColor: '#000000',
+  },
+  introButtonText: {
+    color: '#000000',
+    fontSize: 13,
+    fontWeight: 'bold',
+    fontFamily: 'Helvetica',
+    letterSpacing: 4,
+  },
+  introButtonTextLight: {
+    color: '#FFFFFF',
   },
 });

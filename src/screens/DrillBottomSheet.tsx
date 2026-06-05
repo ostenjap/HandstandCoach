@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -33,6 +33,44 @@ export default function DrillBottomSheet({
 
   // Stick figure breathing/wobble animation
   const formAnim = useRef(new Animated.Value(0)).current;
+
+  // Step 0 wrist-rock: a staged loop (hands → form → rock). Runs on the JS
+  // driver so we can read its progress to drive the phase caption.
+  const wristAnim = useRef(new Animated.Value(0)).current;
+  const [wristPhase, setWristPhase] = useState('PLANT YOUR PALMS');
+
+  useEffect(() => {
+    if (!visible || step?.id !== 0) return;
+
+    const loop = Animated.loop(
+      Animated.timing(wristAnim, {
+        toValue: 1,
+        duration: 6400,
+        useNativeDriver: false,
+      })
+    );
+    loop.start();
+
+    const lastPhase = { current: -1 };
+    const id = wristAnim.addListener(({ value }) => {
+      const phase = value < 0.27 ? 0 : value < 0.52 ? 1 : 2;
+      if (phase === lastPhase.current) return;
+      lastPhase.current = phase;
+      setWristPhase(
+        phase === 0
+          ? 'PLANT YOUR PALMS'
+          : phase === 1
+          ? 'SET A FLAT TABLE-TOP'
+          : 'ROCK FORWARD OVER WRISTS'
+      );
+    });
+
+    return () => {
+      loop.stop();
+      wristAnim.removeListener(id);
+      wristAnim.setValue(0);
+    };
+  }, [visible, step?.id, wristAnim]);
 
   useEffect(() => {
     if (visible) {
@@ -98,6 +136,36 @@ export default function DrillBottomSheet({
     outputRange: [-8, 8],
   });
 
+  // Wrist rock staged loop, driven by wristAnim (0 -> 1 over one cycle):
+  //  phase 1 (0   - .27): zoom in on the planted hands
+  //  phase 2 (.30 - .52): zoom out, body fades in to the table-top form
+  //  phase 3 (.55 - 1  ): rock forward/back, pivoting on the wrists
+  // The whole figure pivots/zooms about the hands (see transformOrigin).
+  const wristGroupScale = wristAnim.interpolate({
+    inputRange: [0, 0.22, 0.34, 1],
+    outputRange: [1.6, 1.6, 1, 1],
+  });
+
+  const wristBodyOpacity = wristAnim.interpolate({
+    inputRange: [0, 0.2, 0.32, 1],
+    outputRange: [0, 0, 1, 1],
+  });
+
+  const wristHandHighlight = wristAnim.interpolate({
+    inputRange: [0, 0.08, 0.2, 0.28, 1],
+    outputRange: [0.2, 1, 1, 0, 0],
+  });
+
+  const wristRockTranslate = wristAnim.interpolate({
+    inputRange: [0, 0.55, 0.68, 0.82, 0.95, 1],
+    outputRange: [0, 0, 7, -4, 0, 0],
+  });
+
+  const wristRockRotate = wristAnim.interpolate({
+    inputRange: [0, 0.55, 0.68, 0.82, 0.95, 1],
+    outputRange: ['0deg', '0deg', '9deg', '-5deg', '0deg', '0deg'],
+  });
+
   const pushUpInterpolation = formAnim.interpolate({
     inputRange: [0, 1],
     outputRange: [0, 16], // push up height transition
@@ -120,19 +188,54 @@ export default function DrillBottomSheet({
 
   const renderVisualGuide = () => {
     switch (step.id) {
-      case 0: // Wrist Protocol (on hands and knees, rocking)
+      case 0: // Wrist Protocol — staged loop: focus hands -> form -> rock
         return (
           <View style={styles.guideContainer}>
             <View style={[styles.guideLine, styles.floorLine, isLight && styles.floorLineLight]} />
-            <Animated.View style={{ transform: [{ translateX: rockInterpolation }] }}>
-              {/* Hands & knees figure */}
-              <View style={styles.quadrupedContainer}>
+
+            {/* Quadruped figure. Zooms/pivots about the hands so the wrist
+                stays the anchor through every phase of the loop. */}
+            <Animated.View
+              style={[
+                styles.quadrupedContainer,
+                {
+                  transform: [
+                    { scale: wristGroupScale },
+                    { translateX: wristRockTranslate },
+                    { rotate: wristRockRotate },
+                  ],
+                },
+              ]}
+            >
+              {/* Body — fades in for the "find the form" phase */}
+              <Animated.View style={[styles.wristBodyGroup, { opacity: wristBodyOpacity }]}>
+                {/* Forearms down to the floor */}
                 <View style={[styles.guideLine, styles.quadrupedArm, isLight && styles.guideLineLight]} />
+                {/* Flat back */}
                 <View style={[styles.guideLine, styles.quadrupedTorso, isLight && styles.guideLineLight]} />
+                {/* Thighs down to the knees */}
                 <View style={[styles.guideLine, styles.quadrupedThigh, isLight && styles.guideLineLight]} />
+                {/* Head at the shoulders */}
                 <View style={[styles.headNodeQuadruped, isLight && styles.headNodeLight]} />
-              </View>
+                {/* Planted knee base */}
+                <View style={[styles.wristKneeBase, isLight && styles.headNodeLight]} />
+              </Animated.View>
+
+              {/* Hands — always planted; pulsing ring highlights them first */}
+              <Animated.View
+                style={[
+                  styles.wristHandHighlight,
+                  isLight && styles.wristHandHighlightLight,
+                  { opacity: wristHandHighlight },
+                ]}
+              />
+              <View style={[styles.wristHandBase, isLight && styles.headNodeLight]} />
             </Animated.View>
+
+            {/* Phase caption — names what to focus on right now */}
+            <Text style={[styles.wristCaption, isLight && styles.wristCaptionLight]}>
+              {wristPhase}
+            </Text>
           </View>
         );
 
@@ -769,6 +872,8 @@ const styles = StyleSheet.create({
     bottom: 10,
     width: 80,
     height: 50,
+    // Pivot on the hands (local x60, bottom) so the rock hinges at the wrists.
+    transformOrigin: '60px 50px',
   },
   quadrupedArm: {
     left: 60,
@@ -798,6 +903,57 @@ const styles = StyleSheet.create({
     width: 9,
     height: 9,
     borderRadius: 4.5,
+    backgroundColor: '#FFFFFF',
+  },
+  wristBodyGroup: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  wristHandHighlight: {
+    position: 'absolute',
+    left: 51,
+    bottom: -8,
+    width: 19,
+    height: 19,
+    borderRadius: 9.5,
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+  },
+  wristHandHighlightLight: {
+    borderColor: '#000000',
+  },
+  wristCaption: {
+    position: 'absolute',
+    bottom: -6,
+    alignSelf: 'center',
+    color: '#666666',
+    fontSize: 9,
+    fontWeight: '900',
+    fontFamily: 'Helvetica',
+    letterSpacing: 2,
+  },
+  wristCaptionLight: {
+    color: '#999999',
+  },
+  wristHandBase: {
+    position: 'absolute',
+    left: 57,
+    bottom: -2,
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: '#FFFFFF',
+  },
+  wristKneeBase: {
+    position: 'absolute',
+    left: 17,
+    bottom: -2,
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
     backgroundColor: '#FFFFFF',
   },
   hollowBodyContainer: {

@@ -264,7 +264,7 @@ export default function CoachScreen({ stepId, onBack, onStepComplete, theme = 'd
                 ]} 
                 onPress={triggerFallDown}
               >
-                <Text style={[styles.simActionBtnText, isLight && styles.simActionBtnTextLight]}>
+                <Text style={[styles.exitDrillBtnText, isLight && styles.exitDrillBtnTextLight]}>
                   {stepId === 0 || stepId === 1 ? 'STOP DRILL' : (stepId === 8 ? 'SAFE BAIL (EXIT DRILL)' : 'FALL DOWN (STOP DRILL)')}
                 </Text>
               </TouchableOpacity>
@@ -580,6 +580,16 @@ const styles = StyleSheet.create({
   },
   simActionBtnTextLight: {
     color: '#FFFFFF',
+  },
+  exitDrillBtnText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: 'bold',
+    fontFamily: 'Helvetica',
+    letterSpacing: 1.5,
+  },
+  exitDrillBtnTextLight: {
+    color: '#000000',
   },
   simLoadingBox: {
     flexDirection: 'row',
