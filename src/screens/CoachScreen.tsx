@@ -225,7 +225,6 @@ export default function CoachScreen({ stepId, onBack, onStepComplete, theme = 'd
         device={device}
         isActive={true}
         frameProcessor={frameProcessor}
-        fps={10}
       />
 
       {/* Tint Overlay */}

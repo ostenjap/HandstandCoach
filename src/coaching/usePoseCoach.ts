@@ -3,6 +3,7 @@ import {
   useCameraDevice,
   useCameraPermission,
   useFrameProcessor,
+  runAtTargetFps,
 } from 'react-native-vision-camera';
 import { useResizePlugin } from 'vision-camera-resize-plugin';
 import { useTensorflowModel } from 'react-native-fast-tflite';
@@ -110,24 +111,28 @@ export function usePoseCoach(stepId: number): PoseCoach {
     (frame) => {
       'worklet';
       if (model == null) return;
-      try {
-        // Resize + convert the frame to the model's input tensor.
-        // mirror:true matches the (mirrored) front-camera preview, so the
-        // decoded keypoints are already in on-screen coordinates.
-        const resized = resize(frame, {
-          scale: { width: MODEL_SIZE, height: MODEL_SIZE },
-          pixelFormat: 'rgb',
-          dataType: 'uint8',
-          mirror: true,
-        });
+      // Throttle inference to ~10 fps without requiring a camera `format`.
+      runAtTargetFps(10, () => {
+        'worklet';
+        try {
+          // Resize + convert the frame to the model's input tensor.
+          // mirror:true matches the (mirrored) front-camera preview, so the
+          // decoded keypoints are already in on-screen coordinates.
+          const resized = resize(frame, {
+            scale: { width: MODEL_SIZE, height: MODEL_SIZE },
+            pixelFormat: 'rgb',
+            dataType: 'uint8',
+            mirror: true,
+          });
 
-        const outputs = model.runSync([resized.buffer as ArrayBuffer]);
-        const out = new Float32Array(outputs[0]);
-        const pose = decodePose(out);
-        onPoseJs(pose);
-      } catch (e) {
-        // Never let a single bad frame crash the camera pipeline.
-      }
+          const outputs = model.runSync([resized.buffer as ArrayBuffer]);
+          const out = new Float32Array(outputs[0]);
+          const pose = decodePose(out);
+          onPoseJs(pose);
+        } catch (e) {
+          // Never let a single bad frame crash the camera pipeline.
+        }
+      });
     },
     [model, onPoseJs, resize]
   );
