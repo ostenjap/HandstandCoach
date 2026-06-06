@@ -79,6 +79,22 @@ timer. No simulator buttons.
 - Phase A (native swap) ✅  · Phase B (frame processor) ✅  · Phase C (mirror/coords) ✅
   via resize `mirror` · Phase D (body-driven timer) ✅.
 
+## Post-build fixes (device testing round 1)
+
+Two runtime errors surfaced on-device and were fixed:
+
+1. **`fps requires a format`** (vision-camera): removed the `fps` prop from `<Camera>`
+   and throttle inference inside the worklet with `runAtTargetFps(10, …)` instead
+   (no `format` needed). JS-only.
+2. **`HybridTfliteModelSpec.outputs … does not have a NativeState`** (render crash):
+   fast-tflite **v3 (Nitro)** could not share the model HybridObject into the worklet
+   runtime. Downgraded to **fast-tflite `1.5.1`** — the pure-JSI version (plain JSI host
+   objects are natively worklet-shareable) — and **removed `react-native-nitro-modules`**.
+   - Note: `1.6.0/1.6.1/2.0.0` are mis-packaged (reference an unpublished `spec/`
+     codegen dir) and fail to bundle; `1.5.1` is the last clean JSI release.
+   - API is the same shape the hook already used: `useTensorflowModel(source, delegate?)`
+     and `runSync(TypedArray[]) → TypedArray[]` (pass the `Uint8Array` directly).
+
 ## Known limitations / next
 - **Step 0 is the proven target** (non-inverted, forgiving check `shoulderY/hipY > 0.5`).
 - **Inverted steps (6–11) will detect worse** — MoveNet is trained on upright people.

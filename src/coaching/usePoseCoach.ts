@@ -46,8 +46,8 @@ export function usePoseCoach(stepId: number): PoseCoach {
 
   // Load the bundled MoveNet model once.
   const tflite = useTensorflowModel(
-    require('../../assets/models/movenet-lightning.tflite'),
-    [] // CPU delegate (portable across all devices)
+    require('../../assets/models/movenet-lightning.tflite')
+    // default (CPU) delegate — portable across all devices
   );
   const model = tflite.state === 'loaded' ? tflite.model : undefined;
   const modelReady = tflite.state === 'loaded';
@@ -125,9 +125,10 @@ export function usePoseCoach(stepId: number): PoseCoach {
             mirror: true,
           });
 
-          const outputs = model.runSync([resized.buffer as ArrayBuffer]);
-          const out = new Float32Array(outputs[0]);
-          const pose = decodePose(out);
+          // fast-tflite v1 takes the typed array directly and returns
+          // typed arrays (MoveNet output: 17 * [y, x, score] floats).
+          const outputs = model.runSync([resized]);
+          const pose = decodePose(outputs[0] as Float32Array);
           onPoseJs(pose);
         } catch (e) {
           // Never let a single bad frame crash the camera pipeline.
