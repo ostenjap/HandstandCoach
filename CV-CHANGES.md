@@ -95,6 +95,17 @@ Two runtime errors surfaced on-device and were fixed:
    - API is the same shape the hook already used: `useTensorflowModel(source, delegate?)`
      and `runSync(TypedArray[]) → TypedArray[]` (pass the `Uint8Array` directly).
 
+## Post-build fixes (device testing round 2)
+
+3. **`react-native-fast-tflite doesn't seem to be linked`**: the JSI `1.5.1` native
+   module doesn't register on the **New Architecture** (1.5.x predates new-arch /
+   bridgeless, so `NativeModules.Tflite` is null). v3 (Nitro) links on new arch but
+   can't share the model into the worklet. Resolution: **switch to the Old Architecture**
+   (`newArchEnabled=false` in `android/gradle.properties` + `app.json`), where the proven
+   stack works — `fast-tflite 1.5.1` (JSI) links via its ReactPackage, and
+   vision-camera v4 + worklets-core + resize-plugin all fully support old arch. This is
+   the original, battle-tested MoveNet-on-vision-camera design.
+
 ## Known limitations / next
 - **Step 0 is the proven target** (non-inverted, forgiving check `shoulderY/hipY > 0.5`).
 - **Inverted steps (6–11) will detect worse** — MoveNet is trained on upright people.
