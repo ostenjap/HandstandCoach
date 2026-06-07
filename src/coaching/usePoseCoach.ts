@@ -31,9 +31,14 @@ export interface PoseCoach {
 /**
  * Real on-device pose coaching.
  *
- * A single MoveNet frame processor produces the 17 keypoints for EVERY step;
- * `analyzePose(pose, stepId)` does the per-step interpretation. The hold timer
- * is driven by the body (analyzePose's `isSuccess`), not by buttons.
+ * The worklet does ONLY the per-frame resize, then hands the pixel buffer to
+ * the JS thread. Inference runs on the JS thread via fast-tflite's async
+ * `run()` (executes off-thread, non-blocking) — this deliberately keeps the
+ * Nitro model OUT of the worklet runtime, which otherwise crashes with
+ * "HybridObject does not have a NativeState".
+ *
+ * One detector feeds every step; `analyzePose(pose, stepId)` is the per-step
+ * judge, and the hold timer is driven by the body (`isSuccess`), not buttons.
  */
 export function usePoseCoach(stepId: number): PoseCoach {
   const [feedback, setFeedback] = useState<CoachFeedback | null>(null);
@@ -46,8 +51,8 @@ export function usePoseCoach(stepId: number): PoseCoach {
 
   // Load the bundled MoveNet model once.
   const tflite = useTensorflowModel(
-    require('../../assets/models/movenet-lightning.tflite')
-    // default (CPU) delegate — portable across all devices
+    require('../../assets/models/movenet-lightning.tflite'),
+    [] // CPU delegate (portable)
   );
   const model = tflite.state === 'loaded' ? tflite.model : undefined;
   const modelReady = tflite.state === 'loaded';
@@ -55,6 +60,7 @@ export function usePoseCoach(stepId: number): PoseCoach {
   const holdTimeRef = useRef(0);
   const lastTsRef = useRef<number | null>(null);
   const prRef = useRef(0);
+  const inFlightRef = useRef(false);
   const stepIdRef = useRef(stepId);
   stepIdRef.current = stepId;
 
@@ -74,9 +80,8 @@ export function usePoseCoach(stepId: number): PoseCoach {
     };
   }, [stepId]);
 
-  // JS-side handler. Receives a decoded pose from the worklet each processed
-  // frame, scores it, and advances the body-driven hold timer.
-  const onPose = useCallback((pose: Pose) => {
+  // Score a decoded pose and advance the body-driven hold timer.
+  const scorePose = useCallback((pose: Pose) => {
     const sid = stepIdRef.current;
     const fb = analyzePose(pose, sid);
 
@@ -88,12 +93,10 @@ export function usePoseCoach(stepId: number): PoseCoach {
       lastTsRef.current = now;
     } else {
       lastTsRef.current = null;
-      // Timer steps reset when you fall out of position; rep steps accumulate.
       if (!isRepStep(sid)) holdTimeRef.current = 0;
     }
     fb.holdTime = Math.floor(holdTimeRef.current);
 
-    // Persist a new personal record as the hold grows (timer steps).
     if (!isRepStep(sid) && fb.holdTime > prRef.current) {
       prRef.current = fb.holdTime;
       setPersonalRecord(fb.holdTime);
@@ -104,38 +107,50 @@ export function usePoseCoach(stepId: number): PoseCoach {
     setFeedback(fb);
   }, []);
 
-  // Worklet -> JS bridge (worklets-core).
-  const onPoseJs = useMemo(() => Worklets.createRunOnJS(onPose), [onPose]);
+  // JS-thread inference. Runs on the JS thread (called via runOnJS), where the
+  // Nitro model has its NativeState. `run()` is async and executes off-thread.
+  const runInference = useCallback(
+    async (input: Uint8Array) => {
+      if (model == null || inFlightRef.current) return;
+      inFlightRef.current = true;
+      try {
+        const outputs = await model.run([input.buffer as ArrayBuffer]);
+        const out = new Float32Array(outputs[0]);
+        scorePose(decodePose(out));
+      } catch (e) {
+        // ignore individual frame failures
+      } finally {
+        inFlightRef.current = false;
+      }
+    },
+    [model, scorePose]
+  );
+
+  const runInferenceJs = useMemo(
+    () => Worklets.createRunOnJS(runInference),
+    [runInference]
+  );
 
   const frameProcessor = useFrameProcessor(
     (frame) => {
       'worklet';
-      if (model == null) return;
-      // Throttle inference to ~10 fps without requiring a camera `format`.
-      runAtTargetFps(10, () => {
+      // Throttle to ~8 fps; resize in the worklet, infer on JS.
+      runAtTargetFps(8, () => {
         'worklet';
         try {
-          // Resize + convert the frame to the model's input tensor.
-          // mirror:true matches the (mirrored) front-camera preview, so the
-          // decoded keypoints are already in on-screen coordinates.
           const resized = resize(frame, {
             scale: { width: MODEL_SIZE, height: MODEL_SIZE },
             pixelFormat: 'rgb',
             dataType: 'uint8',
-            mirror: true,
+            mirror: true, // match the mirrored front-camera preview
           });
-
-          // fast-tflite v1 takes the typed array directly and returns
-          // typed arrays (MoveNet output: 17 * [y, x, score] floats).
-          const outputs = model.runSync([resized]);
-          const pose = decodePose(outputs[0] as Float32Array);
-          onPoseJs(pose);
+          runInferenceJs(resized);
         } catch (e) {
-          // Never let a single bad frame crash the camera pipeline.
+          // never let a bad frame crash the pipeline
         }
       });
     },
-    [model, onPoseJs, resize]
+    [runInferenceJs, resize]
   );
 
   return {

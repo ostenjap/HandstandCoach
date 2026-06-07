@@ -106,6 +106,25 @@ Two runtime errors surfaced on-device and were fixed:
    vision-camera v4 + worklets-core + resize-plugin all fully support old arch. This is
    the original, battle-tested MoveNet-on-vision-camera design.
 
+## Post-build fixes (device testing round 3) — final approach
+
+The old-arch build failed at Gradle: **Expo SDK 56 is New-Architecture-only**, so
+`newArchEnabled=false` is not viable. Reverted to new arch.
+
+On new arch the constraint is fixed: fast-tflite **v1 (JSI) won't link** on new arch, and
+fast-tflite **v3 (Nitro) can't share the model into the worklet**. Resolution that needs
+neither:
+
+**Run inference on the JS thread, not in the worklet.** The frame-processor worklet now
+does *only* the resize, then hands the pixel buffer to JS via `Worklets.createRunOnJS`.
+Inference runs on the JS thread with fast-tflite **v3**'s async `model.run()` (executes
+off-thread, non-blocking), where the Nitro model has its NativeState — so the
+"does not have a NativeState" crash can't happen. An `inFlight` guard drops frames while
+a previous inference is still running; throttled to ~8 fps.
+
+Final stack (new arch): vision-camera 4.7.3 + worklets-core 1.6.3 +
+vision-camera-resize-plugin 3.2.0 + fast-tflite 3.0.1 + react-native-nitro-modules.
+
 ## Known limitations / next
 - **Step 0 is the proven target** (non-inverted, forgiving check `shoulderY/hipY > 0.5`).
 - **Inverted steps (6–11) will detect worse** — MoveNet is trained on upright people.
