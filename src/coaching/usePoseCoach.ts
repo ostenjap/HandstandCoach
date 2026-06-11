@@ -7,6 +7,7 @@ import {
 } from 'react-native-vision-camera';
 import { useResizePlugin } from 'vision-camera-resize-plugin';
 import { useTensorflowModel } from 'react-native-fast-tflite';
+import { NitroModules } from 'react-native-nitro-modules';
 import { Worklets } from 'react-native-worklets-core';
 import { analyzePose, decodePose } from './analyzePose';
 import { updatePR, loadUserProfile } from './userStore';
@@ -60,7 +61,6 @@ export function usePoseCoach(stepId: number): PoseCoach {
   const holdTimeRef = useRef(0);
   const lastTsRef = useRef<number | null>(null);
   const prRef = useRef(0);
-  const inFlightRef = useRef(false);
   const stepIdRef = useRef(stepId);
   stepIdRef.current = stepId;
 
@@ -103,54 +103,75 @@ export function usePoseCoach(stepId: number): PoseCoach {
       updatePR(sid, fb.holdTime);
     }
 
+    const okCount = diagRef.current.ok++;
+    if (okCount < 3 || okCount % 24 === 0) {
+      console.log(
+        `[pose] scored #${okCount} success=${fb.isSuccess} hold=${fb.holdTime} ` +
+          `nose(y,x,s)=${pose.nose.y.toFixed(2)},${pose.nose.x.toFixed(2)},${pose.nose.score.toFixed(2)}`
+      );
+    }
+
     setActivePose(pose);
     setFeedback(fb);
   }, []);
 
-  // JS-thread inference. Runs on the JS thread (called via runOnJS), where the
-  // Nitro model has its NativeState. `run()` is async and executes off-thread.
-  const runInference = useCallback(
-    async (input: Uint8Array) => {
-      if (model == null || inFlightRef.current) return;
-      inFlightRef.current = true;
-      try {
-        const outputs = await model.run([input.buffer as ArrayBuffer]);
-        const out = new Float32Array(outputs[0]);
-        scorePose(decodePose(out));
-      } catch (e) {
-        // ignore individual frame failures
-      } finally {
-        inFlightRef.current = false;
-      }
-    },
-    [model, scorePose]
+  const diagRef = useRef({ ok: 0 });
+
+  // Deduping logger callable from the worklet — prints each distinct message
+  // once so we can see how far the pipeline gets without spam.
+  const seenRef = useRef<Set<string>>(new Set());
+  const logJs = useMemo(
+    () =>
+      Worklets.createRunOnJS((m: string) => {
+        if (seenRef.current.has(m)) return;
+        seenRef.current.add(m);
+        console.log('[pose-wl]', m);
+      }),
+    []
   );
 
-  const runInferenceJs = useMemo(
-    () => Worklets.createRunOnJS(runInference),
-    [runInference]
+  // Send the decoded pose (a plain object of numbers — a valid shared value)
+  // to JS for scoring. The pixel buffer never crosses the bridge.
+  const onPoseJs = useMemo(() => Worklets.createRunOnJS(scorePose), [scorePose]);
+
+  // Box the Nitro model into a jsi::HostObject so it can be captured by
+  // VisionCamera v4's worklet runtime (the raw HybridObject's NativeState is
+  // not accessible there). We unbox() inside the worklet to run inference.
+  const boxedModel = useMemo(
+    () => (model != null ? NitroModules.box(model) : undefined),
+    [model]
   );
 
+  // Inference runs INSIDE the worklet (the documented fast-tflite pattern).
   const frameProcessor = useFrameProcessor(
     (frame) => {
       'worklet';
-      // Throttle to ~8 fps; resize in the worklet, infer on JS.
+      if (boxedModel == null) return;
       runAtTargetFps(8, () => {
         'worklet';
         try {
+          const tflite = boxedModel.unbox();
           const resized = resize(frame, {
             scale: { width: MODEL_SIZE, height: MODEL_SIZE },
             pixelFormat: 'rgb',
             dataType: 'uint8',
             mirror: true, // match the mirrored front-camera preview
           });
-          runInferenceJs(resized);
-        } catch (e) {
-          // never let a bad frame crash the pipeline
+          // Extract the exact slice (typed arrays may have a byteOffset).
+          const inputBuffer = resized.buffer.slice(
+            resized.byteOffset,
+            resized.byteOffset + resized.byteLength
+          );
+          const outputs = tflite.runSync([inputBuffer as ArrayBuffer]);
+          const pose = decodePose(new Float32Array(outputs[0]));
+          logJs('OK: inference ran, nose=' + pose.nose.score.toFixed(2));
+          onPoseJs(pose);
+        } catch (e: any) {
+          logJs('ERR: ' + (e?.message ?? String(e)));
         }
       });
     },
-    [runInferenceJs, resize]
+    [boxedModel, resize, onPoseJs, logJs]
   );
 
   return {
